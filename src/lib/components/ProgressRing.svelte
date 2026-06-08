@@ -30,8 +30,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-family: var(--font-mono);
 		font-size: var(--text-sm);
 		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
 		color: var(--text-brand);
 	}
 </style>

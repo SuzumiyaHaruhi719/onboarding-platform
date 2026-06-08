@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '@fontsource-variable/inter/index.css';
+	import '@fontsource-variable/jetbrains-mono/index.css';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';

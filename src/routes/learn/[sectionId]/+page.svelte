@@ -130,7 +130,7 @@
 	.content {
 		overflow-y: auto;
 		padding: var(--space-12) var(--space-12) var(--space-10);
-		max-width: 820px;
+		max-width: 760px;
 		width: 100%;
 		margin: 0 auto;
 	}
