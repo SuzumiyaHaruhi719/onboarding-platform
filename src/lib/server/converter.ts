@@ -1,5 +1,17 @@
 import type { BlockInput } from '$lib/content/types';
 
+/** Clean up messy extracted text: strip md anchors/emphasis, collapse spaces,
+ *  and remove spurious spaces inserted between CJK characters (common in PDF/PPTX). */
+function normalizeText(s: string): string {
+	let out = s
+		.replace(/\{#[^}]*\}/g, '') // markdown heading anchors {#id}
+		.replace(/[*_`]+/g, '') // emphasis markers
+		.replace(/[ \t]+/g, ' '); // collapse runs of spaces
+	// Drop spaces between adjacent CJK characters / CJK punctuation ("关 心" -> "关心").
+	out = out.replace(/([一-鿿　-〿＀-￯]) +(?=[一-鿿　-〿＀-￯])/g, '$1');
+	return out.trim();
+}
+
 /**
  * Deterministic local fallback when the AI agent is unavailable. Parses a
  * useful subset of Markdown (headings, lists, quotes, paragraphs) into blocks.
@@ -10,9 +22,8 @@ export function mdToBlocks(md: string): BlockInput[] {
 	let para: string[] = [];
 	let list: { ordered: boolean; items: string[] } | null = null;
 
-	const stripInline = (s: string): string => s.replace(/[*_`]/g, '').trim();
 	const flushPara = (): void => {
-		const text = para.join(' ').trim();
+		const text = normalizeText(para.join(' '));
 		if (text) blocks.push({ type: 'paragraph', text });
 		para = [];
 	};
@@ -34,14 +45,16 @@ export function mdToBlocks(md: string): BlockInput[] {
 		const heading = /^(#{1,6})\s+(.*)$/.exec(line);
 		if (heading) {
 			flushAll();
-			blocks.push({ type: 'heading', level: heading[1]!.length <= 1 ? 2 : 3, text: stripInline(heading[2]!) });
+			const text = normalizeText(heading[2]!);
+			if (text) blocks.push({ type: 'heading', level: heading[1]!.length <= 1 ? 2 : 3, text });
 			continue;
 		}
 		const quote = /^>\s?(.*)$/.exec(line);
 		if (quote) {
 			flushPara();
 			flushList();
-			blocks.push({ type: 'quote', text: stripInline(quote[1]!) });
+			const text = normalizeText(quote[1]!);
+			if (text) blocks.push({ type: 'quote', text });
 			continue;
 		}
 		const ul = /^[-*+]\s+(.*)$/.exec(line);
@@ -51,21 +64,23 @@ export function mdToBlocks(md: string): BlockInput[] {
 				flushList();
 				list = { ordered: false, items: [] };
 			}
-			list.items.push(stripInline(ul[1]!));
+			const item = normalizeText(ul[1]!);
+			if (item) list.items.push(item);
 			continue;
 		}
-		const ol = /^\d+\.\s+(.*)$/.exec(line);
+		const ol = /^\d+[.)]\s+(.*)$/.exec(line);
 		if (ol) {
 			flushPara();
 			if (!list || !list.ordered) {
 				flushList();
 				list = { ordered: true, items: [] };
 			}
-			list.items.push(stripInline(ol[1]!));
+			const item = normalizeText(ol[1]!);
+			if (item) list.items.push(item);
 			continue;
 		}
 		flushList();
-		para.push(stripInline(line));
+		para.push(line);
 	}
 	flushAll();
 	return blocks;
@@ -76,7 +91,7 @@ export function textToBlocks(text: string): BlockInput[] {
 	return text
 		.replace(/\r\n/g, '\n')
 		.split(/\n{2,}/)
-		.map((s) => s.replace(/\s+/g, ' ').trim())
+		.map((s) => normalizeText(s.replace(/\n/g, ' ')))
 		.filter(Boolean)
 		.map((t) => ({ type: 'paragraph', text: t.slice(0, 8000) }) as BlockInput);
 }

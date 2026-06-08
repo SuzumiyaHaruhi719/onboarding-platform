@@ -60,19 +60,19 @@ async function run(jobId: string, sectionId: string, filename: string, buf: Buff
 		job.status = 'converting';
 		let blocks: BlockInput[] = [];
 		if (hasAgentKey()) {
-			job.usedAgent = true;
 			try {
 				const result = await convertWithAgent(content);
-				blocks = result.blocks;
-				job.tokens = result.tokens;
+				if (result.blocks.length > 0) {
+					blocks = result.blocks;
+					job.tokens = result.tokens;
+					job.usedAgent = true;
+				}
 			} catch {
-				blocks = [];
+				// fall through to local fallback
 			}
-			// Agent failed or returned nothing → fall back to deterministic local parsing.
-			if (blocks.length === 0) blocks = localFallback(markdown, content);
-		} else {
-			blocks = localFallback(markdown, content);
 		}
+		// No key, or agent failed / returned nothing → deterministic local parsing.
+		if (blocks.length === 0) blocks = localFallback(markdown, content);
 
 		job.status = 'saving';
 		let created = 0;

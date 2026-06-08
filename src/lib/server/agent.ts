@@ -52,6 +52,9 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 				{ role: 'user', content: text.slice(0, 60000) }
 			],
 			temperature: 0.2,
+			// Generous cap so the JSON output is never truncated (this is a reasoning
+			// model — reasoning + output must both fit).
+			max_tokens: 8192,
 			response_format: { type: 'json_object' }
 		})
 	});
@@ -61,9 +64,12 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 	const content = data.choices?.[0]?.message?.content;
 	if (typeof content !== 'string') throw new Error('agent returned no content');
 
-	const parsed: unknown = JSON.parse(content);
-	const arr =
-		Array.isArray(parsed) ? parsed : Array.isArray((parsed as { blocks?: unknown }).blocks) ? (parsed as { blocks: unknown[] }).blocks : null;
+	const parsed = extractJson(content);
+	const arr = Array.isArray(parsed)
+		? parsed
+		: parsed && Array.isArray((parsed as { blocks?: unknown }).blocks)
+			? (parsed as { blocks: unknown[] }).blocks
+			: null;
 	if (!arr) throw new Error('agent returned no blocks array');
 
 	const blocks: BlockInput[] = [];
@@ -73,4 +79,26 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 	}
 	const tokens = typeof data.usage?.total_tokens === 'number' ? data.usage.total_tokens : 0;
 	return { blocks, tokens };
+}
+
+/** Robustly pull a JSON value out of model output (handles code fences / stray prose). */
+function extractJson(content: string): unknown {
+	let s = content.trim();
+	const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+	if (fence?.[1]) s = fence[1].trim();
+	try {
+		return JSON.parse(s);
+	} catch {
+		// fall through
+	}
+	const start = s.indexOf('{');
+	const end = s.lastIndexOf('}');
+	if (start >= 0 && end > start) {
+		try {
+			return JSON.parse(s.slice(start, end + 1));
+		} catch {
+			return null;
+		}
+	}
+	return null;
 }
