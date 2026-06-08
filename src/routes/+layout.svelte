@@ -75,6 +75,14 @@
 		font-weight: 700;
 		font-size: var(--text-lg);
 	}
+	:global(:root[data-theme='dark']) .topnav {
+		box-shadow:
+			0 1px 0 rgba(255, 255, 255, 0.035),
+			0 16px 40px rgba(0, 0, 0, 0.28);
+	}
+	:global(:root[data-theme='dark']) .logo {
+		text-shadow: 0 0 18px rgba(47, 212, 122, 0.18);
+	}
 	.spacer {
 		flex: 1;
 	}

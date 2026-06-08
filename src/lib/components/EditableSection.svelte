@@ -1108,6 +1108,27 @@
 		box-shadow: var(--shadow-sm);
 		padding: var(--space-4);
 	}
+	:global(:root[data-theme='dark']) .bar {
+		background: rgba(8, 10, 12, 0.94);
+		box-shadow:
+			inset 0 -1px 0 rgba(255, 255, 255, 0.035),
+			0 16px 42px rgba(0, 0, 0, 0.2);
+	}
+	:global(:root[data-theme='dark']) .panel-card {
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0)),
+			#0b0d10;
+		border-color: rgba(255, 255, 255, 0.11);
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.035),
+			0 18px 42px rgba(0, 0, 0, 0.34);
+	}
+	:global(:root[data-theme='dark']) .hero-panel {
+		background:
+			linear-gradient(135deg, rgba(47, 212, 122, 0.08), rgba(47, 212, 122, 0.015) 42%, rgba(255, 255, 255, 0.012)),
+			#0a0c0e;
+		border-color: rgba(47, 212, 122, 0.28);
+	}
 	.hero-panel {
 		background: linear-gradient(135deg, var(--brand-50), var(--surface-elevated) 54%);
 		border-color: var(--brand-200);
@@ -1241,6 +1262,18 @@
 		text-align: left;
 		cursor: pointer;
 		transition: var(--transition-fast);
+	}
+	:global(:root[data-theme='dark']) .module-tile {
+		background: #080a0c;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+	:global(:root[data-theme='dark']) .module-tile:hover,
+	:global(:root[data-theme='dark']) .module-tile.active {
+		background:
+			linear-gradient(180deg, rgba(47, 212, 122, 0.075), rgba(47, 212, 122, 0.018)),
+			#0b0e11;
+		border-color: rgba(47, 212, 122, 0.34);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 	}
 	.module-tile:hover,
 	.module-tile.active {

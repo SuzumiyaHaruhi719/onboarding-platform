@@ -115,6 +115,25 @@
 		border: 1px solid var(--brand-200);
 		color: var(--text-brand);
 	}
+	:global(:root[data-theme='dark']) .sidebar {
+		background: linear-gradient(180deg, #090b0d 0%, #060708 100%);
+		box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.025);
+	}
+	:global(:root[data-theme='dark']) .navitem {
+		background: rgba(255, 255, 255, 0.012);
+	}
+	:global(:root[data-theme='dark']) .navitem.active {
+		border-color: rgba(47, 212, 122, 0.34);
+		background:
+			linear-gradient(180deg, rgba(47, 212, 122, 0.075), rgba(47, 212, 122, 0.025)),
+			#0a0c0e;
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.045),
+			0 10px 28px rgba(0, 0, 0, 0.28);
+	}
+	:global(:root[data-theme='dark']) .ic {
+		background: #12161b;
+	}
 	.ic.done {
 		color: var(--brand-500);
 	}

@@ -413,6 +413,34 @@
 		border-top: 1px solid var(--border-default);
 		background: var(--surface-elevated);
 	}
+	:global(:root[data-theme='dark']) .rte {
+		border-color: rgba(255, 255, 255, 0.14);
+		background: #080a0c;
+		box-shadow:
+			0 24px 80px rgba(0, 0, 0, 0.55),
+			inset 0 1px 0 rgba(255, 255, 255, 0.035);
+	}
+	:global(:root[data-theme='dark']) .ribbon,
+	:global(:root[data-theme='dark']) .statusbar {
+		background: rgba(13, 15, 18, 0.96);
+	}
+	:global(:root[data-theme='dark']) .button-row {
+		background: #101318;
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+	:global(:root[data-theme='dark']) .surface-shell {
+		background: #050607;
+	}
+	:global(:root[data-theme='dark']) .surface {
+		background: #0a0c0e;
+		border-color: rgba(255, 255, 255, 0.1);
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.035),
+			0 18px 54px rgba(0, 0, 0, 0.4);
+	}
+	:global(:root[data-theme='dark']) .surface :global(blockquote) {
+		background: #11161b;
+	}
 	.btn {
 		min-height: 38px;
 		padding: var(--space-2) var(--space-4);

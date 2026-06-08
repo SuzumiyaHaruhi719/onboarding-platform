@@ -130,6 +130,8 @@
 }
 
 :root[data-theme='dark'] {
+	color-scheme: dark;
+
 	/* 品牌色:亮绿仅作功能点缀 */
 	--brand-50: rgba(47, 212, 122, 0.08);
 	--brand-100: rgba(47, 212, 122, 0.14);
@@ -156,28 +158,28 @@
 	--info: #4ab5e8;
 	--info-bg: rgba(74, 181, 232, 0.12);
 
-	/* 中性深灰表面,非纯黑 */
-	--surface-page: #0f1115;
-	--surface-elevated: #1c2028;
-	--surface-container: #222830;
-	--surface-subtle: #282f3a;
-	--surface-hover: #2e3642;
-	--surface-active: #353e4c;
-	/* GLP-dark 导航底色:半透明深灰 + blur(10px),无氛围光 */
-	--nav-bg: rgba(15, 17, 21, 0.72);
+	/* 近纯黑表面:用微弱层级区分页面、面板和悬停态 */
+	--surface-page: #050607;
+	--surface-elevated: #0d0f12;
+	--surface-container: #090b0d;
+	--surface-subtle: #14181d;
+	--surface-hover: #181d23;
+	--surface-active: #20262e;
+	/* GLP-dark 导航底色:高透明黑 + blur(10px),无氛围光 */
+	--nav-bg: rgba(5, 6, 7, 0.86);
 	/* 深色导航上品牌绿对比充足,直接用 brand-500 */
 	--logo: #2fd47a;
 
-	--border-default: #2e3542;
-	--border-subtle: #252c38;
-	--border-strong: #3c4555;
+	--border-default: rgba(255, 255, 255, 0.12);
+	--border-subtle: rgba(255, 255, 255, 0.07);
+	--border-strong: rgba(255, 255, 255, 0.2);
 	--border-focus: #2fd47a;
 
-	--text-primary: #eceef0;
-	--text-secondary: #b4b8bd;
-	--text-tertiary: #8a8f95;
-	--text-disabled: #565a60;
-	--text-placeholder: #6b7076;
+	--text-primary: #f4f5f6;
+	--text-secondary: #c6c9cd;
+	--text-tertiary: #8f969e;
+	--text-disabled: #565d66;
+	--text-placeholder: #747b84;
 	--text-inverse: #0e1012;
 	--text-brand: #2fd47a;
 
@@ -193,7 +195,7 @@
 	--chart-10: #f0e896;
 
 	/* 阴影仅中性黑透明度,无彩色辉光 */
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
-	--shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
-	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.025);
+	--shadow-md: 0 10px 24px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+	--shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.64), inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
