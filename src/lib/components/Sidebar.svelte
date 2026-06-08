@@ -194,9 +194,11 @@
 		gap: var(--space-3);
 		margin-bottom: var(--space-3);
 		padding: var(--space-3);
-		border: 1px solid var(--border-subtle);
+		border: 1px solid color-mix(in srgb, var(--accent-amber) 34%, var(--border-subtle));
 		border-radius: var(--radius-lg);
-		background: var(--surface-elevated);
+		background:
+			linear-gradient(135deg, var(--accent-amber-bg), transparent 58%),
+			var(--surface-elevated);
 		box-shadow: var(--shadow-sm);
 	}
 	.tools-kicker {
@@ -237,9 +239,9 @@
 	.tool-add:hover,
 	.mini-add:hover,
 	.confirm:hover:not(:disabled) {
-		border-color: var(--brand-300);
-		background: var(--brand-50);
-		color: var(--text-brand);
+		border-color: var(--accent-amber);
+		background: var(--accent-amber-bg);
+		color: var(--accent-amber);
 	}
 	.create-row {
 		display: grid;
@@ -247,9 +249,11 @@
 		gap: var(--space-2);
 		margin-bottom: var(--space-3);
 		padding: var(--space-2);
-		border: 1px solid var(--brand-200);
+		border: 1px solid color-mix(in srgb, var(--accent-amber) 42%, var(--border-subtle));
 		border-radius: var(--radius-lg);
-		background: var(--brand-50);
+		background:
+			linear-gradient(135deg, var(--accent-amber-bg), transparent 70%),
+			var(--surface-elevated);
 	}
 	.create-row input {
 		min-width: 0;
@@ -268,9 +272,9 @@
 	.confirm {
 		width: 38px;
 		min-height: 38px;
-		background: var(--brand-500);
-		border-color: var(--brand-500);
-		color: white;
+		background: var(--accent-amber);
+		border-color: var(--accent-amber);
+		color: var(--text-inverse);
 	}
 	.confirm:disabled {
 		opacity: 0.45;
@@ -335,8 +339,10 @@
 		color: var(--text-primary);
 	}
 	.navitem.active {
-		border-color: var(--border-default);
-		background: var(--surface-elevated);
+		border-color: color-mix(in srgb, var(--brand-500) 36%, var(--border-default));
+		background:
+			linear-gradient(90deg, var(--brand-50), transparent 52%),
+			var(--surface-elevated);
 		color: var(--text-primary);
 		box-shadow: var(--shadow-sm);
 	}
@@ -382,9 +388,10 @@
 	:global(:root[data-theme='dark']) .structure-tools,
 	:global(:root[data-theme='dark']) .create-row {
 		background:
+			linear-gradient(135deg, var(--accent-amber-bg), transparent 58%),
 			linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0)),
 			#0a0c0e;
-		border-color: rgba(255, 255, 255, 0.1);
+		border-color: color-mix(in srgb, var(--accent-amber) 28%, rgba(255, 255, 255, 0.1));
 	}
 	:global(:root[data-theme='dark']) .tool-add,
 	:global(:root[data-theme='dark']) .mini-add {

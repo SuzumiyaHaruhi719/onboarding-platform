@@ -20,7 +20,10 @@ body {
 }
 
 body {
-	background: var(--surface-page);
+	background:
+		linear-gradient(135deg, var(--accent-blue-bg), transparent 26%),
+		linear-gradient(315deg, var(--accent-amber-bg), transparent 32%),
+		var(--surface-page);
 	color: var(--text-primary);
 	font-family: var(--font-sans);
 	font-size: var(--text-base);

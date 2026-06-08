@@ -65,7 +65,10 @@
 		align-items: center;
 		gap: var(--space-2);
 		padding: 0 var(--content-padding-x);
-		background: var(--nav-bg);
+		background:
+			linear-gradient(90deg, var(--brand-50), transparent 34%),
+			linear-gradient(120deg, transparent, var(--accent-blue-bg) 72%, var(--accent-violet-bg)),
+			var(--nav-bg);
 		border-bottom: 1px solid var(--border-default);
 		backdrop-filter: blur(16px) saturate(1.4);
 		-webkit-backdrop-filter: blur(16px) saturate(1.4);
@@ -76,6 +79,10 @@
 		font-size: var(--text-lg);
 	}
 	:global(:root[data-theme='dark']) .topnav {
+		background:
+			linear-gradient(90deg, rgba(47, 212, 122, 0.07), transparent 34%),
+			linear-gradient(120deg, transparent, var(--accent-blue-bg) 72%, var(--accent-violet-bg)),
+			var(--nav-bg);
 		box-shadow:
 			0 1px 0 rgba(255, 255, 255, 0.035),
 			0 16px 40px rgba(0, 0, 0, 0.28);

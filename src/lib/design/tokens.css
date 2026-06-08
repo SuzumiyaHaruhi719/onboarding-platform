@@ -19,6 +19,16 @@
 	--accent-emerald: #00d47b;
 	--accent-forest: #228b22;
 	--accent-mint: #38a169;
+	--accent-blue: #1479d4;
+	--accent-blue-bg: rgba(20, 121, 212, 0.1);
+	--accent-cyan: #13a8b5;
+	--accent-cyan-bg: rgba(19, 168, 181, 0.1);
+	--accent-amber: #d88700;
+	--accent-amber-bg: rgba(216, 135, 0, 0.12);
+	--accent-violet: #7b61d1;
+	--accent-violet-bg: rgba(123, 97, 209, 0.11);
+	--accent-rose: #c94c70;
+	--accent-rose-bg: rgba(201, 76, 112, 0.1);
 
 	/* 语义色 */
 	--success: #10b050;
@@ -148,6 +158,16 @@
 	--accent-emerald: #3ce79b;
 	--accent-forest: #5ac97a;
 	--accent-mint: #6ae4a8;
+	--accent-blue: #5bb6ff;
+	--accent-blue-bg: rgba(91, 182, 255, 0.12);
+	--accent-cyan: #4fd6d6;
+	--accent-cyan-bg: rgba(79, 214, 214, 0.11);
+	--accent-amber: #f5b838;
+	--accent-amber-bg: rgba(245, 184, 56, 0.12);
+	--accent-violet: #a89aff;
+	--accent-violet-bg: rgba(168, 154, 255, 0.12);
+	--accent-rose: #f27d9d;
+	--accent-rose-bg: rgba(242, 125, 157, 0.11);
 
 	--success: #3dd97a;
 	--success-bg: rgba(61, 217, 122, 0.12);

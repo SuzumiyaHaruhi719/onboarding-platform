@@ -40,14 +40,16 @@
 		gap: var(--space-3);
 		padding: var(--space-3) var(--space-5);
 		border-bottom: 1px solid var(--border-subtle);
-		background: rgba(255, 255, 255, 0.92);
+		background:
+			linear-gradient(90deg, var(--accent-blue-bg), transparent 58%),
+			rgba(255, 255, 255, 0.92);
 		backdrop-filter: blur(12px);
 		box-shadow: var(--shadow-sm);
 	}
 	.preview-kicker {
 		display: block;
 		margin-bottom: 2px;
-		color: var(--text-brand);
+		color: var(--accent-blue);
 		font-family: var(--font-mono);
 		font-size: var(--text-xs);
 		font-weight: 800;
@@ -64,23 +66,25 @@
 		gap: var(--space-2);
 		min-height: 40px;
 		padding: 0 var(--space-4);
-		border: 1px solid var(--brand-300);
+		border: 1px solid var(--accent-blue);
 		border-radius: var(--radius-full);
-		background: var(--brand-500);
+		background: var(--accent-blue);
 		color: white;
 		font-weight: 800;
 		font-size: var(--text-sm);
 		text-decoration: none;
-		box-shadow: 0 10px 24px rgba(10, 167, 89, 0.22);
+		box-shadow: 0 10px 24px color-mix(in srgb, var(--accent-blue) 24%, transparent);
 		transition: var(--transition-fast);
 	}
 	.back-edit:hover {
-		background: var(--brand-600);
+		background: color-mix(in srgb, var(--accent-blue) 82%, black);
 		transform: translateY(-1px);
 	}
 	:global(:root[data-theme='dark']) .preview-exit {
-		background: rgba(5, 6, 7, 0.9);
-		border-bottom-color: rgba(255, 255, 255, 0.1);
+		background:
+			linear-gradient(90deg, var(--accent-blue-bg), transparent 58%),
+			rgba(5, 6, 7, 0.9);
+		border-bottom-color: color-mix(in srgb, var(--accent-blue) 20%, rgba(255, 255, 255, 0.1));
 		box-shadow:
 			0 1px 0 rgba(255, 255, 255, 0.035),
 			0 18px 42px rgba(0, 0, 0, 0.3);

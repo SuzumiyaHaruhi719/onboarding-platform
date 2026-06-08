@@ -183,7 +183,9 @@
 	.rte {
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-xl);
-		background: var(--surface-container);
+		background:
+			linear-gradient(135deg, var(--accent-blue-bg), transparent 38%),
+			var(--surface-container);
 		box-shadow: var(--shadow-lg);
 		overflow: hidden;
 	}
@@ -197,7 +199,9 @@
 		flex-wrap: wrap;
 		padding: var(--space-3) var(--space-4);
 		border-bottom: 1px solid var(--border-default);
-		background: var(--surface-elevated);
+		background:
+			linear-gradient(90deg, var(--accent-violet-bg), transparent 44%),
+			var(--surface-elevated);
 	}
 	.ribbon-group {
 		display: flex;
@@ -207,6 +211,18 @@
 	}
 	.ribbon-group.wide {
 		min-width: 220px;
+	}
+	.ribbon-group:nth-child(1) .group-label {
+		color: var(--accent-amber);
+	}
+	.ribbon-group:nth-child(2) .group-label {
+		color: var(--text-brand);
+	}
+	.ribbon-group:nth-child(3) .group-label {
+		color: var(--accent-violet);
+	}
+	.ribbon-group:nth-child(4) .group-label {
+		color: var(--accent-blue);
 	}
 	.group-label {
 		font-family: var(--font-mono);
@@ -221,7 +237,9 @@
 		padding: 3px;
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
-		background: var(--surface-subtle);
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0)),
+			var(--surface-subtle);
 	}
 	.ribbon button,
 	.mini,
@@ -246,9 +264,9 @@
 	}
 	.ribbon button.on {
 		background: var(--surface-elevated);
-		border-color: var(--brand-500);
-		color: var(--text-brand);
-		box-shadow: inset 0 -2px 0 var(--brand-500);
+		border-color: var(--accent-blue);
+		color: var(--accent-blue);
+		box-shadow: inset 0 -2px 0 var(--accent-blue);
 	}
 	.ribbon button:disabled {
 		opacity: 0.38;
@@ -339,7 +357,10 @@
 	}
 	.surface-shell {
 		padding: var(--space-6);
-		background: var(--surface-page);
+		background:
+			radial-gradient(circle at 12% 0%, var(--accent-violet-bg), transparent 30%),
+			radial-gradient(circle at 92% 8%, var(--accent-blue-bg), transparent 34%),
+			var(--surface-page);
 	}
 	.surface {
 		min-height: min(58vh, 640px);
@@ -348,7 +369,9 @@
 		padding: var(--space-8) var(--space-10);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
-		background: var(--surface-elevated);
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 120px),
+			var(--surface-elevated);
 		box-shadow: var(--shadow-sm);
 	}
 	.surface :global(.ProseMirror) {
@@ -386,15 +409,15 @@
 		margin: var(--space-1) 0;
 	}
 	.surface :global(blockquote) {
-		border-left: 3px solid var(--brand-500);
-		background: var(--surface-subtle);
+		border-left: 3px solid var(--accent-amber);
+		background: var(--accent-amber-bg);
 		padding: var(--space-2) var(--space-4);
 		border-radius: var(--radius-md);
 		margin: 0 0 var(--space-3);
 		color: var(--text-primary);
 	}
 	.surface :global(a) {
-		color: var(--text-brand);
+		color: var(--accent-blue);
 		text-decoration: underline;
 		text-underline-offset: 3px;
 	}
@@ -414,32 +437,41 @@
 		background: var(--surface-elevated);
 	}
 	:global(:root[data-theme='dark']) .rte {
-		border-color: rgba(255, 255, 255, 0.14);
-		background: #080a0c;
+		border-color: color-mix(in srgb, var(--accent-violet) 18%, rgba(255, 255, 255, 0.14));
+		background:
+			linear-gradient(135deg, var(--accent-violet-bg), transparent 38%),
+			#080a0c;
 		box-shadow:
 			0 24px 80px rgba(0, 0, 0, 0.55),
 			inset 0 1px 0 rgba(255, 255, 255, 0.035);
 	}
 	:global(:root[data-theme='dark']) .ribbon,
 	:global(:root[data-theme='dark']) .statusbar {
-		background: rgba(13, 15, 18, 0.96);
+		background:
+			linear-gradient(90deg, var(--accent-violet-bg), transparent 44%),
+			rgba(13, 15, 18, 0.96);
 	}
 	:global(:root[data-theme='dark']) .button-row {
 		background: #101318;
 		border-color: rgba(255, 255, 255, 0.08);
 	}
 	:global(:root[data-theme='dark']) .surface-shell {
-		background: #050607;
+		background:
+			radial-gradient(circle at 12% 0%, var(--accent-violet-bg), transparent 30%),
+			radial-gradient(circle at 92% 8%, var(--accent-blue-bg), transparent 34%),
+			#050607;
 	}
 	:global(:root[data-theme='dark']) .surface {
-		background: #0a0c0e;
-		border-color: rgba(255, 255, 255, 0.1);
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0) 120px),
+			#0a0c0e;
+		border-color: color-mix(in srgb, var(--accent-blue) 16%, rgba(255, 255, 255, 0.1));
 		box-shadow:
 			inset 0 1px 0 rgba(255, 255, 255, 0.035),
 			0 18px 54px rgba(0, 0, 0, 0.4);
 	}
 	:global(:root[data-theme='dark']) .surface :global(blockquote) {
-		background: #11161b;
+		background: var(--accent-amber-bg);
 	}
 	.btn {
 		min-height: 38px;

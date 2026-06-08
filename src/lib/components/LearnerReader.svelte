@@ -158,10 +158,13 @@
 		max-width: 820px;
 		width: 100%;
 		margin: var(--space-8) auto;
-		border: 1px solid var(--border-default);
+		border: 1px solid color-mix(in srgb, var(--accent-blue) 18%, var(--border-default));
 		border-radius: var(--radius-2xl);
-		background: var(--surface-elevated);
-		box-shadow: var(--shadow-sm);
+		background:
+			linear-gradient(180deg, var(--accent-blue-bg), transparent 180px),
+			linear-gradient(90deg, transparent, var(--accent-amber-bg) 120%, transparent),
+			var(--surface-elevated);
+		box-shadow: var(--shadow-md);
 		overflow-wrap: anywhere;
 	}
 	.eyebrow {
@@ -172,14 +175,14 @@
 		font-size: var(--text-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
-		color: var(--text-brand);
+		color: var(--accent-blue);
 		margin: 0 0 var(--space-3);
 	}
 	.eyebrow .dot {
 		width: 6px;
 		height: 6px;
 		border-radius: var(--radius-full);
-		background: var(--brand-500);
+		background: var(--accent-blue);
 	}
 	.content h1 {
 		font-size: var(--text-4xl);
@@ -200,8 +203,11 @@
 		padding: var(--space-8) 0;
 	}
 	.rail-panel {
-		background: var(--surface-elevated);
-		border: 1px solid var(--border-default);
+		background:
+			linear-gradient(180deg, var(--brand-50), transparent 48%),
+			linear-gradient(135deg, var(--accent-violet-bg), transparent 68%),
+			var(--surface-elevated);
+		border: 1px solid color-mix(in srgb, var(--brand-500) 22%, var(--border-default));
 		border-radius: var(--radius-2xl);
 		box-shadow: var(--shadow-md);
 		padding: var(--space-6);
@@ -218,7 +224,7 @@
 		margin-bottom: var(--space-3);
 	}
 	.rail-section {
-		border-top: 1px solid var(--border-subtle);
+		border-top: 1px solid color-mix(in srgb, var(--accent-violet) 22%, var(--border-subtle));
 		padding-top: var(--space-5);
 	}
 	.rail-section .rail-label {
@@ -233,6 +239,23 @@
 		font-weight: 700;
 		font-size: var(--text-sm);
 		margin: 0;
+	}
+	:global(:root[data-theme='dark']) .content {
+		background:
+			linear-gradient(180deg, var(--accent-blue-bg), transparent 180px),
+			linear-gradient(90deg, transparent, var(--accent-amber-bg) 120%, transparent),
+			#0a0c0e;
+		border-color: color-mix(in srgb, var(--accent-blue) 24%, rgba(255, 255, 255, 0.1));
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.035),
+			0 22px 64px rgba(0, 0, 0, 0.46);
+	}
+	:global(:root[data-theme='dark']) .rail-panel {
+		background:
+			linear-gradient(180deg, rgba(47, 212, 122, 0.075), transparent 48%),
+			linear-gradient(135deg, var(--accent-violet-bg), transparent 68%),
+			#0b0d10;
+		border-color: color-mix(in srgb, var(--accent-violet) 22%, rgba(255, 255, 255, 0.11));
 	}
 	@media (max-width: 768px) {
 		.reader {

@@ -530,11 +530,11 @@
 			<a class="btn-sm ghost preview-link" href={`/learn/${section.id}?view=learner`}>
 				<Icon name="graduation-cap" size={15} /> 真实学生视图
 			</a>
-			<label class="btn-sm ghost upload" class:busy={ingestBusy}>
+			<label class="btn-sm ghost upload ai-upload" class:busy={ingestBusy}>
 				{#if ingestBusy}AI 转译中…{:else}<Icon name="sparkles" size={15} /> AI 转译文件{/if}
 				<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 			</label>
-			<label class="btn-sm ghost upload" class:busy={uploading}>
+			<label class="btn-sm ghost upload video-upload" class:busy={uploading}>
 				{#if uploading}上传中…{:else}<Icon name="video" size={15} /> 上传视频{/if}
 				<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
 			</label>
@@ -893,7 +893,10 @@
 		justify-content: space-between;
 		gap: var(--space-3);
 		padding: var(--space-3) var(--space-6);
-		background: var(--surface-elevated);
+		background:
+			linear-gradient(90deg, var(--brand-50), transparent 32%),
+			linear-gradient(135deg, var(--accent-blue-bg), transparent 58%),
+			var(--surface-elevated);
 		border-bottom: 1px solid var(--border-default);
 		flex-wrap: wrap;
 	}
@@ -977,8 +980,10 @@
 
 	.ingest {
 		padding: var(--space-3) var(--space-6);
-		background: var(--brand-50);
-		border-bottom: 1px solid var(--brand-200);
+		background:
+			linear-gradient(90deg, var(--accent-violet-bg), var(--accent-blue-bg)),
+			var(--surface-elevated);
+		border-bottom: 1px solid color-mix(in srgb, var(--accent-violet) 36%, var(--border-subtle));
 	}
 	.ingest.err {
 		background: var(--error-bg);
@@ -989,7 +994,7 @@
 		justify-content: space-between;
 		align-items: center;
 		font-size: var(--text-sm);
-		color: var(--text-brand);
+		color: var(--accent-violet);
 		margin-bottom: var(--space-2);
 	}
 	.ingest.err .ingest-top {
@@ -1021,7 +1026,7 @@
 	}
 	.fill {
 		height: 100%;
-		background: var(--brand-500);
+		background: linear-gradient(90deg, var(--accent-violet), var(--accent-blue), var(--brand-500));
 		border-radius: var(--radius-full);
 		transition: width var(--transition-moderate);
 	}
@@ -1104,12 +1109,17 @@
 	.panel-card {
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-xl);
-		background: var(--surface-elevated);
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0)),
+			var(--surface-elevated);
 		box-shadow: var(--shadow-sm);
 		padding: var(--space-4);
 	}
 	:global(:root[data-theme='dark']) .bar {
-		background: rgba(8, 10, 12, 0.94);
+		background:
+			linear-gradient(90deg, rgba(47, 212, 122, 0.075), transparent 28%),
+			linear-gradient(135deg, var(--accent-blue-bg), transparent 60%),
+			rgba(8, 10, 12, 0.94);
 		box-shadow:
 			inset 0 -1px 0 rgba(255, 255, 255, 0.035),
 			0 16px 42px rgba(0, 0, 0, 0.2);
@@ -1125,13 +1135,14 @@
 	}
 	:global(:root[data-theme='dark']) .hero-panel {
 		background:
-			linear-gradient(135deg, rgba(47, 212, 122, 0.08), rgba(47, 212, 122, 0.015) 42%, rgba(255, 255, 255, 0.012)),
+			linear-gradient(135deg, rgba(47, 212, 122, 0.08), var(--accent-blue-bg) 48%, rgba(255, 255, 255, 0.012)),
 			#0a0c0e;
-		border-color: rgba(47, 212, 122, 0.28);
+		border-color: color-mix(in srgb, var(--accent-blue) 30%, rgba(47, 212, 122, 0.28));
 	}
 	.hero-panel {
-		background: linear-gradient(135deg, var(--brand-50), var(--surface-elevated) 54%);
-		border-color: var(--brand-200);
+		background:
+			linear-gradient(135deg, var(--brand-50), var(--accent-blue-bg) 50%, var(--surface-elevated) 78%);
+		border-color: color-mix(in srgb, var(--accent-blue) 28%, var(--brand-200));
 	}
 	.panel-kicker {
 		display: inline-flex;
@@ -1184,6 +1195,22 @@
 		color: var(--text-brand);
 		font-family: var(--font-mono);
 		font-weight: 900;
+	}
+	.sidepanel > .panel-card:nth-child(2) .panel-index,
+	.sidepanel > .panel-card:nth-child(2) .panel-kicker {
+		color: var(--accent-amber);
+	}
+	.sidepanel > .panel-card:nth-child(2) .panel-index {
+		background: var(--accent-amber-bg);
+		border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--border-default));
+	}
+	.sidepanel > .panel-card:nth-child(3) .panel-index,
+	.sidepanel > .panel-card:nth-child(3) .panel-kicker {
+		color: var(--accent-violet);
+	}
+	.sidepanel > .panel-card:nth-child(3) .panel-index {
+		background: var(--accent-violet-bg);
+		border-color: color-mix(in srgb, var(--accent-violet) 42%, var(--border-default));
 	}
 	.field {
 		display: flex;
@@ -1257,28 +1284,54 @@
 		padding: var(--space-3);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
-		background: var(--surface-container);
+		background:
+			linear-gradient(90deg, var(--tile-bg, transparent), transparent 56%),
+			var(--surface-container);
 		color: var(--text-primary);
 		text-align: left;
 		cursor: pointer;
 		transition: var(--transition-fast);
 	}
+	.module-tile:nth-child(1) {
+		--tile-accent: var(--accent-blue);
+		--tile-bg: var(--accent-blue-bg);
+	}
+	.module-tile:nth-child(2) {
+		--tile-accent: var(--accent-amber);
+		--tile-bg: var(--accent-amber-bg);
+	}
+	.module-tile:nth-child(3) {
+		--tile-accent: var(--accent-cyan);
+		--tile-bg: var(--accent-cyan-bg);
+	}
+	.module-tile:nth-child(4) {
+		--tile-accent: var(--accent-violet);
+		--tile-bg: var(--accent-violet-bg);
+	}
+	.module-tile:nth-child(5) {
+		--tile-accent: var(--accent-rose);
+		--tile-bg: var(--accent-rose-bg);
+	}
 	:global(:root[data-theme='dark']) .module-tile {
-		background: #080a0c;
-		border-color: rgba(255, 255, 255, 0.08);
+		background:
+			linear-gradient(90deg, var(--tile-bg, transparent), transparent 58%),
+			#080a0c;
+		border-color: color-mix(in srgb, var(--tile-accent, white) 18%, rgba(255, 255, 255, 0.08));
 	}
 	:global(:root[data-theme='dark']) .module-tile:hover,
 	:global(:root[data-theme='dark']) .module-tile.active {
 		background:
-			linear-gradient(180deg, rgba(47, 212, 122, 0.075), rgba(47, 212, 122, 0.018)),
+			linear-gradient(180deg, var(--tile-bg, rgba(47, 212, 122, 0.075)), rgba(255, 255, 255, 0.012)),
 			#0b0e11;
-		border-color: rgba(47, 212, 122, 0.34);
+		border-color: color-mix(in srgb, var(--tile-accent, var(--brand-500)) 42%, rgba(255, 255, 255, 0.14));
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 	}
 	.module-tile:hover,
 	.module-tile.active {
-		border-color: var(--brand-500);
-		background: var(--brand-50);
+		border-color: var(--tile-accent, var(--brand-500));
+		background:
+			linear-gradient(90deg, var(--tile-bg, var(--brand-50)), transparent 60%),
+			var(--surface-elevated);
 	}
 	.tile-icon {
 		width: 40px;
@@ -1289,7 +1342,7 @@
 		border-radius: var(--radius-lg);
 		background: var(--surface-elevated);
 		border: 1px solid var(--border-default);
-		color: var(--text-brand);
+		color: var(--tile-accent, var(--text-brand));
 	}
 	.module-tile strong,
 	.module-tile small {
@@ -1345,9 +1398,9 @@
 		cursor: pointer;
 	}
 	.wide-action:hover {
-		border-color: var(--brand-500);
-		color: var(--text-brand);
-		background: var(--brand-50);
+		border-color: var(--accent-blue);
+		color: var(--accent-blue);
+		background: var(--accent-blue-bg);
 	}
 	.wide-action.busy {
 		opacity: 0.65;
@@ -1648,6 +1701,21 @@
 	.ghost:hover {
 		background: var(--surface-hover);
 		color: var(--text-primary);
+	}
+	.preview-link {
+		border-color: color-mix(in srgb, var(--accent-blue) 36%, var(--border-default));
+		background: var(--accent-blue-bg);
+		color: var(--accent-blue);
+	}
+	.ai-upload {
+		border-color: color-mix(in srgb, var(--accent-violet) 36%, var(--border-default));
+		background: var(--accent-violet-bg);
+		color: var(--accent-violet);
+	}
+	.video-upload {
+		border-color: color-mix(in srgb, var(--accent-cyan) 36%, var(--border-default));
+		background: var(--accent-cyan-bg);
+		color: var(--accent-cyan);
 	}
 	.upload {
 		display: inline-flex;
