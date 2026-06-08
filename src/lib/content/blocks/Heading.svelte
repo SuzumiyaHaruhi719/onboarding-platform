@@ -15,7 +15,7 @@
 		color: var(--text-primary);
 		margin: var(--space-8) 0 var(--space-3);
 		line-height: 1.3;
-		letter-spacing: -0.015em;
+		letter-spacing: 0;
 	}
 	h3 {
 		font-size: var(--text-xl);
@@ -23,6 +23,6 @@
 		color: var(--text-primary);
 		margin: var(--space-6) 0 var(--space-2);
 		line-height: 1.4;
-		letter-spacing: -0.01em;
+		letter-spacing: 0;
 	}
 </style>

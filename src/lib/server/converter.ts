@@ -1,5 +1,35 @@
 import type { BlockInput } from '$lib/content/types';
 
+const METADATA_LINE =
+	/^(---\s*)?(title|author|creator|producer|created|modified|language|islinearized)\b[:=]?/i;
+
+function isMetadataNoise(line: string): boolean {
+	const compact = line.trim();
+	if (!compact) return false;
+	if (/^-{3,}$/.test(compact)) return true;
+	if (/^---\s*(title|created|modified|language|islinearized)\b/i.test(compact)) return true;
+	if (/^(language\s*:.*islinearized\s*:|islinearized\s*:)/i.test(compact)) return true;
+	return METADATA_LINE.test(compact);
+}
+
+function collapseBlankLines(text: string): string {
+	return text
+		.replace(/[ \t]+\n/g, '\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+}
+
+/** Strip extractor metadata and front matter before content is sent to AI or fallback parsing. */
+export function cleanExtractedSource(source: string): string {
+	let text = source.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+	text = text.replace(/^\s*---\s*\n[\s\S]*?\n---\s*(?:\n|$)/, '');
+	const lines = text
+		.split('\n')
+		.map((line) => line.trimEnd())
+		.filter((line) => !isMetadataNoise(line));
+	return collapseBlankLines(lines.join('\n'));
+}
+
 /** Clean up messy extracted text: strip md anchors/emphasis, collapse spaces,
  *  and remove spurious spaces inserted between CJK characters (common in PDF/PPTX). */
 function normalizeText(s: string): string {
@@ -12,12 +42,44 @@ function normalizeText(s: string): string {
 	return out.trim();
 }
 
+function looksLikeListItem(line: string): boolean {
+	return /^([-*+]|\d+[.)])\s+/.test(line);
+}
+
+function shouldStartNewParagraph(previous: string, next: string): boolean {
+	if (looksLikeListItem(next)) return true;
+	if (!previous) return false;
+	return /[。！？；.!?;]$/.test(previous);
+}
+
+function splitPlainParagraphs(text: string): string[] {
+	const paragraphs: string[] = [];
+	let current: string[] = [];
+	const flush = (): void => {
+		const value = normalizeText(current.join(' '));
+		if (value) paragraphs.push(value);
+		current = [];
+	};
+
+	for (const raw of cleanExtractedSource(text).split('\n')) {
+		const line = raw.trim();
+		if (!line) {
+			flush();
+			continue;
+		}
+		if (current.length && shouldStartNewParagraph(current.at(-1) ?? '', line)) flush();
+		current.push(line);
+	}
+	flush();
+	return paragraphs;
+}
+
 /**
  * Deterministic local fallback when the AI agent is unavailable. Parses a
  * useful subset of Markdown (headings, lists, quotes, paragraphs) into blocks.
  */
 export function mdToBlocks(md: string): BlockInput[] {
-	const lines = md.replace(/\r\n/g, '\n').split('\n');
+	const lines = cleanExtractedSource(md).split('\n');
 	const blocks: BlockInput[] = [];
 	let para: string[] = [];
 	let list: { ordered: boolean; items: string[] } | null = null;
@@ -117,10 +179,7 @@ export function blocksToMarkdown(blocks: BlockInput[]): string {
 
 /** Plain text → paragraph blocks split on blank lines. */
 export function textToBlocks(text: string): BlockInput[] {
-	return text
-		.replace(/\r\n/g, '\n')
-		.split(/\n{2,}/)
-		.map((s) => normalizeText(s.replace(/\n/g, ' ')))
-		.filter(Boolean)
-		.map((t) => ({ type: 'paragraph', text: t.slice(0, 8000) }) as BlockInput);
+	return splitPlainParagraphs(text).map(
+		(t) => ({ type: 'paragraph', text: t.slice(0, 8000) }) as BlockInput
+	);
 }

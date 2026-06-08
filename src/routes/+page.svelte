@@ -67,7 +67,7 @@
 	h1 {
 		font-size: var(--text-4xl);
 		font-weight: 800;
-		letter-spacing: -0.02em;
+		letter-spacing: 0;
 		color: var(--text-primary);
 		margin: 0 0 var(--space-3);
 	}

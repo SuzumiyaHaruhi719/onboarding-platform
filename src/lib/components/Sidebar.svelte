@@ -115,12 +115,33 @@
 			width: 100%;
 			position: static;
 			height: auto;
-			max-height: 38vh;
+			max-height: none;
+			display: flex;
+			align-items: center;
+			gap: var(--space-2);
 			border-right: none;
 			border-bottom: 1px solid var(--border-subtle);
+			overflow-x: auto;
+			overflow-y: hidden;
+			scroll-snap-type: x proximity;
+		}
+		.mod {
+			flex: none;
+			margin: 0 var(--space-1) 0 0;
+			max-width: 132px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 		.navitem {
+			flex: none;
 			min-height: 38px;
+			scroll-snap-align: start;
+			border: 1px solid transparent;
+			background: var(--surface-page);
+		}
+		.navitem.active {
+			border-color: var(--border-default);
 		}
 	}
 </style>

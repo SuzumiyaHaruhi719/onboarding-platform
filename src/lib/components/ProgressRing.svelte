@@ -54,7 +54,7 @@
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
 		font-weight: 700;
-		letter-spacing: -0.02em;
+		letter-spacing: 0;
 		color: var(--text-brand);
 	}
 	@media (prefers-reduced-motion: reduce) {

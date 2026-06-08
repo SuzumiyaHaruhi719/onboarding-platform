@@ -162,7 +162,7 @@
 		line-height: 1.2;
 		color: var(--text-primary);
 		margin: 0 0 var(--space-8);
-		letter-spacing: -0.01em;
+		letter-spacing: 0;
 	}
 	.end-spacer {
 		height: var(--space-16);

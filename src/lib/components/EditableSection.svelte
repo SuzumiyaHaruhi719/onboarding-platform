@@ -6,7 +6,7 @@
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import BlockForm from '$lib/components/editor/BlockForm.svelte';
 	import BlockMenu from '$lib/components/editor/BlockMenu.svelte';
-	import RichTextEditor from '$lib/components/editor/RichTextEditor.svelte';
+	import LazyRichTextEditor from '$lib/components/editor/LazyRichTextEditor.svelte';
 	import QuizForm from '$lib/components/editor/QuizForm.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { SectionView, Block, BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
@@ -33,7 +33,7 @@
 	let dragId = $state<string | null>(null);
 	let overId = $state<string | null>(null);
 
-	let toast = $state<{ msg: string; undo: () => void } | null>(null);
+	let toast = $state<{ msg: string; undo?: () => void; actionLabel?: string } | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
 	let metaTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -113,9 +113,9 @@
 		}
 	}
 
-	function showToast(msg: string, undo: () => void): void {
+	function showToast(msg: string, undo?: () => void, actionLabel = '撤销'): void {
 		if (toastTimer) clearTimeout(toastTimer);
-		toast = { msg, undo };
+		toast = { msg, undo, actionLabel };
 		toastTimer = setTimeout(() => (toast = null), 6000);
 	}
 
@@ -227,7 +227,7 @@
 		input.value = '';
 		uploading = false;
 		if (r?.ok) await createBlock({ type: 'video', src: r.url, durationSec: Math.round(dur) }, 'end');
-		else alert('上传失败:' + (r?.error ?? ''));
+		else showToast(`上传失败:${r?.error ?? '请检查视频文件后重试'}`);
 	}
 
 	// ---- AI ingestion → preview → choose insertion ----
@@ -445,7 +445,7 @@
 				{#if pending && (pending.at === 'start' || section.blocks.length === 0)}
 					<div class="inserting">
 						{#if pending.type === 'richtext'}
-							<RichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
 						{:else if pending.type === 'quiz'}
 							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
 						{:else}
@@ -484,7 +484,7 @@
 						<div class="block-body">
 							{#if editingId === block.id}
 								{#if block.type === 'richtext'}
-									<RichTextEditor initial={block.markdown} onsave={(md) => updateBlock(block.id, { type: 'richtext', markdown: md })} oncancel={() => (editingId = null)} />
+									<LazyRichTextEditor initial={block.markdown} onsave={(md) => updateBlock(block.id, { type: 'richtext', markdown: md })} oncancel={() => (editingId = null)} />
 								{:else if block.type === 'quiz'}
 									{@const q = quizById.get(block.quizId)}
 									{#if q}
@@ -527,7 +527,7 @@
 						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
 							<div class="inserting after">
 								{#if pending.type === 'richtext'}
-									<RichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+									<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
 								{:else if pending.type === 'quiz'}
 									<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
 								{:else}
@@ -547,7 +547,7 @@
 						{#if pending && pending.at === 'end'}
 							<div class="inserting">
 								{#if pending.type === 'richtext'}
-									<RichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
+									<LazyRichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
 								{:else if pending.type === 'quiz'}
 									<QuizForm onsave={(quiz) => createQuizBlock(quiz, 'end')} oncancel={() => (pending = null)} />
 								{:else}
@@ -564,7 +564,7 @@
 	{#if toast}
 		<div class="toast" transition:fly={{ y: 16, duration: 260, easing: cubicOut }}>
 			<span>{toast.msg}</span>
-			<button onclick={() => toast?.undo()}>撤销</button>
+			{#if toast.undo}<button onclick={() => toast?.undo?.()}>{toast.actionLabel}</button>{/if}
 		</div>
 	{/if}
 </div>

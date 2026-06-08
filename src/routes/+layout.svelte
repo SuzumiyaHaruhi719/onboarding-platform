@@ -34,6 +34,13 @@
 </script>
 
 <svelte:head>
+	<title>{i18n.t('app.title')} · Onboarding Platform</title>
+	<meta
+		name="description"
+		content={data.lang === 'zh'
+			? '新员工入职阅读、编辑与强制学习平台'
+			: 'Onboarding reading, authoring, and enforced learning platform'}
+	/>
 	<link rel="icon" href={favicon} />
 </svelte:head>
 

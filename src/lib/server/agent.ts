@@ -7,6 +7,13 @@ import type { BlockInput } from '$lib/content/types';
 const BASE = env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const MODEL = env.QWEN_MODEL || 'qwen3.7-plus';
 
+function numericEnv(value: string | undefined, fallback: number): number {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const AGENT_TIMEOUT_MS = numericEnv(env.DASHSCOPE_TIMEOUT_MS, 30_000);
+
 /** The multimodal agent (qwen3.7-plus) is configured only when its key is set. */
 export function hasAgentKey(): boolean {
 	return !!env.DASHSCOPE_API_KEY;
@@ -45,25 +52,37 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 	const key = env.DASHSCOPE_API_KEY;
 	if (!key) throw new Error('DASHSCOPE_API_KEY not set');
 
-	const res = await fetch(`${BASE}/chat/completions`, {
-		method: 'POST',
-		headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-		body: JSON.stringify({
-			model: MODEL,
-			messages: [
-				{ role: 'system', content: SYSTEM_PROMPT },
-				{ role: 'user', content: text.slice(0, 60000) }
-			],
-			temperature: 0.2,
-			// Generous cap so the JSON output is never truncated (this is a reasoning
-			// model — reasoning + output must both fit).
-			max_tokens: 8192,
-			response_format: { type: 'json_object' }
-		})
-	});
-	if (!res.ok) throw new Error(`agent HTTP ${res.status}`);
-
-	const data = (await res.json()) as ChatResponse;
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+	let data: ChatResponse;
+	try {
+		const res = await fetch(`${BASE}/chat/completions`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+			signal: controller.signal,
+			body: JSON.stringify({
+				model: MODEL,
+				messages: [
+					{ role: 'system', content: SYSTEM_PROMPT },
+					{ role: 'user', content: text.slice(0, 60000) }
+				],
+				temperature: 0.2,
+				// Generous cap so the JSON output is never truncated (this is a reasoning
+				// model — reasoning + output must both fit).
+				max_tokens: 8192,
+				response_format: { type: 'json_object' }
+			})
+		});
+		if (!res.ok) throw new Error(`agent HTTP ${res.status}`);
+		data = (await res.json()) as ChatResponse;
+	} catch (e) {
+		if (e instanceof Error && e.name === 'AbortError') {
+			throw new Error(`agent timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s`);
+		}
+		throw e;
+	} finally {
+		clearTimeout(timeout);
+	}
 	const content = data.choices?.[0]?.message?.content;
 	if (typeof content !== 'string') throw new Error('agent returned no content');
 

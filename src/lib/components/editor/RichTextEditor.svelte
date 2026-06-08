@@ -15,6 +15,8 @@
 	let editor: Editor | null = null;
 	let tick = $state(0); // bumped on every transaction to refresh toolbar state
 	let err = $state('');
+	let linkOpen = $state(false);
+	let linkUrl = $state('');
 	const startMarkdown = untrack(() => initial);
 
 	onMount(() => {
@@ -45,12 +47,32 @@
 	function chain() {
 		return editor!.chain().focus();
 	}
-	function setLink(): void {
+	function openLinkPanel(): void {
 		if (!editor) return;
-		const url = window.prompt('链接 URL(留空清除):', '');
-		if (url === null) return;
-		if (url === '') chain().unsetLink().run();
-		else chain().extendMarkRange('link').setLink({ href: url }).run();
+		const attrs = editor.getAttributes('link') as { href?: string };
+		linkUrl = attrs.href ?? '';
+		linkOpen = !linkOpen;
+	}
+	function normalizeUrl(url: string): string {
+		if (/^(https?:|mailto:|#|\/)/i.test(url)) return url;
+		return `https://${url}`;
+	}
+	function applyLink(): void {
+		if (!editor) return;
+		const url = linkUrl.trim();
+		if (!url) chain().unsetLink().run();
+		else chain().extendMarkRange('link').setLink({ href: normalizeUrl(url) }).run();
+		linkOpen = false;
+	}
+	function clearLink(): void {
+		if (!editor) return;
+		chain().unsetLink().run();
+		linkUrl = '';
+		linkOpen = false;
+	}
+	function onLinkKey(e: KeyboardEvent): void {
+		if (e.key === 'Enter') applyLink();
+		if (e.key === 'Escape') linkOpen = false;
 	}
 	function save(): void {
 		if (!editor) return;
@@ -77,8 +99,24 @@
 		<button type="button" class="ico" class:on={active('bulletList')} title="无序列表" aria-label="无序列表" onclick={() => chain().toggleBulletList().run()}><Icon name="list" size={16} /></button>
 		<button type="button" class="ico" class:on={active('orderedList')} title="有序列表" aria-label="有序列表" onclick={() => chain().toggleOrderedList().run()}><Icon name="list-ordered" size={16} /></button>
 		<button type="button" class="ico" class:on={active('blockquote')} title="引用" aria-label="引用" onclick={() => chain().toggleBlockquote().run()}><Icon name="text-quote" size={16} /></button>
-		<button type="button" class="ico" class:on={active('link')} title="链接" aria-label="链接" onclick={setLink}><Icon name="link" size={16} /></button>
+		<button type="button" class="ico" class:on={active('link')} title="链接" aria-label="链接" onclick={openLinkPanel}><Icon name="link" size={16} /></button>
 	</div>
+
+	{#if linkOpen}
+		<div class="link-panel">
+			<label>
+				<span>链接 URL</span>
+				<input
+					type="url"
+					placeholder="https://example.com"
+					bind:value={linkUrl}
+					onkeydown={onLinkKey}
+				/>
+			</label>
+			<button type="button" class="mini primary" onclick={applyLink}>应用</button>
+			<button type="button" class="mini" onclick={clearLink}>清除</button>
+		</div>
+	{/if}
 
 	<div class="surface" bind:this={element}></div>
 
@@ -154,6 +192,55 @@
 		background: var(--border-default);
 		margin: 0 var(--space-1);
 	}
+	.link-panel {
+		display: flex;
+		align-items: flex-end;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-4);
+		border-bottom: 1px solid var(--border-default);
+		background: var(--surface-page);
+	}
+	.link-panel label {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+	.link-panel span {
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+	}
+	.link-panel input {
+		width: 100%;
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		background: var(--surface-elevated);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--text-sm);
+	}
+	.link-panel input:focus {
+		outline: none;
+		border-color: var(--brand-500);
+		box-shadow: 0 0 0 3px var(--brand-200);
+	}
+	.mini {
+		height: 34px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		background: var(--surface-elevated);
+		color: var(--text-secondary);
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.mini.primary {
+		border-color: var(--brand-500);
+		background: var(--brand-500);
+		color: var(--text-inverse);
+	}
 	.surface {
 		padding: var(--space-4) var(--space-5);
 		min-height: 120px;
@@ -173,7 +260,7 @@
 		font-weight: 800;
 		color: var(--text-primary);
 		margin: var(--space-4) 0 var(--space-2);
-		letter-spacing: -0.015em;
+		letter-spacing: 0;
 	}
 	.surface :global(h3) {
 		font-size: var(--text-xl);
