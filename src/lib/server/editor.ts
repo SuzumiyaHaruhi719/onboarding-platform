@@ -114,6 +114,38 @@ export function reorderBlocks(orderedIds: string[]): void {
 	});
 }
 
+function listSectionBlockIds(sectionId: string): string[] {
+	return db
+		.select({ id: schema.blocks.id })
+		.from(schema.blocks)
+		.where(eq(schema.blocks.sectionId, sectionId))
+		.orderBy(asc(schema.blocks.order), asc(schema.blocks.id))
+		.all()
+		.map((r) => r.id);
+}
+
+export type InsertPosition = 'start' | 'end' | { afterId: string };
+
+/** Create multiple blocks then move them to the chosen position. Returns count. */
+export function insertBlocksAt(sectionId: string, blocks: BlockInput[], position: InsertPosition): number {
+	if (blocks.length === 0) return 0;
+	const newIds = blocks.map((b) => createBlock(sectionId, b)); // appended in order
+	if (position === 'end') return blocks.length;
+
+	const all = listSectionBlockIds(sectionId);
+	const isNew = new Set(newIds);
+	const old = all.filter((id) => !isNew.has(id));
+	let desired: string[];
+	if (position === 'start') {
+		desired = [...newIds, ...old];
+	} else {
+		const idx = old.indexOf(position.afterId);
+		desired = idx < 0 ? [...old, ...newIds] : [...old.slice(0, idx + 1), ...newIds, ...old.slice(idx + 1)];
+	}
+	reorderBlocks(desired);
+	return blocks.length;
+}
+
 // ---- Quizzes ----
 export function createQuiz(sectionId: string, quiz: QuizInput): string {
 	const id = randomUUID();

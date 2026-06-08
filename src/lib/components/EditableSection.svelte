@@ -178,23 +178,32 @@
 		else alert('上传失败:' + (r?.error ?? ''));
 	}
 
-	// ---- AI ingestion with live progress / tokens / elapsed ----
+	// ---- AI ingestion → preview → user chooses insertion position ----
+	interface IngestEvent {
+		t: number;
+		msg: string;
+	}
 	let ingestBusy = $state(false);
+	let ingestStage = $state('pending');
 	let ingestStatus = $state('');
 	let ingestElapsed = $state(0);
 	let ingestTokens = $state(0);
 	let ingestUsedAgent = $state(false);
-	let ingestDone = $state('');
+	let ingestEvents = $state<IngestEvent[]>([]);
+	let previewBlocks = $state<BlockInput[]>([]);
+	let showPreview = $state(false);
+	let insertPos = $state<string>('end');
+	let inserting = $state(false);
 	let timer: ReturnType<typeof setInterval> | null = null;
 
 	const STAGE_LABEL: Record<string, string> = {
-		pending: '排队中', extracting: '提取文本', converting: 'AI 转译中', saving: '写入内容块', done: '完成', error: '失败'
+		pending: '排队中', extracting: '提取文本', converting: 'AI 转译中', ready: '转译完成', error: '失败'
 	};
 	const STAGE_PCT: Record<string, number> = {
-		pending: 8, extracting: 30, converting: 70, saving: 92, done: 100, error: 100
+		pending: 8, extracting: 35, converting: 75, ready: 100, error: 100
 	};
-	let ingestStage = $state<string>('pending');
 	const ingestPct = $derived(STAGE_PCT[ingestStage] ?? 0);
+	const previewRender = $derived(previewBlocks.map((b, i) => ({ ...b, id: `pv-${i}` }) as Block));
 
 	function stopTimer(): void {
 		if (timer) clearInterval(timer);
@@ -206,18 +215,19 @@
 		const file = input.files?.[0];
 		if (!file) return;
 		ingestBusy = true;
-		ingestDone = '';
-		ingestTokens = 0;
-		ingestElapsed = 0;
 		ingestStage = 'pending';
 		ingestStatus = '上传中';
+		ingestEvents = [];
+		ingestTokens = 0;
+		ingestUsedAgent = false;
+		ingestElapsed = 0;
+		previewBlocks = [];
 		const started = Date.now();
 		stopTimer();
 		timer = setInterval(() => (ingestElapsed = Math.round((Date.now() - started) / 1000)), 250);
 
 		const fd = new FormData();
 		fd.append('file', file);
-		fd.append('sectionId', section.id);
 		const res = await fetch('/api/editor/ingest', { method: 'POST', body: fd }).then((r) => r.json()).catch(() => null);
 		input.value = '';
 		if (!res?.ok) {
@@ -240,12 +250,13 @@
 			ingestStatus = STAGE_LABEL[s.status] ?? s.status;
 			ingestUsedAgent = !!s.usedAgent;
 			if (typeof s.tokens === 'number') ingestTokens = s.tokens;
-			if (s.status === 'done') {
+			if (Array.isArray(s.events)) ingestEvents = s.events;
+			if (s.status === 'ready') {
 				stopTimer();
 				ingestBusy = false;
-				const secs = (s.durationMs / 1000).toFixed(1);
-				ingestDone = `完成 · 新增 ${s.blocksCreated} 块 · 用时 ${secs}s${s.usedAgent ? ` · ${s.tokens} tokens(qwen3.7-plus)` : '(本地解析)'}`;
-				await refresh();
+				previewBlocks = Array.isArray(s.blocks) ? s.blocks : [];
+				insertPos = 'end';
+				showPreview = true;
 				return;
 			}
 			if (s.status === 'error') {
@@ -254,13 +265,38 @@
 				ingestStatus = '失败:' + (s.error ?? '转译失败');
 				return;
 			}
-			setTimeout(poll, 1200);
+			setTimeout(poll, 1000);
 		};
 		void poll();
 	}
 
+	async function confirmInsert(): Promise<void> {
+		if (previewBlocks.length === 0) return;
+		inserting = true;
+		try {
+			const position = insertPos === 'start' || insertPos === 'end' ? insertPos : { afterId: insertPos };
+			await call('/api/editor/blocks/insert', { sectionId: section.id, blocks: previewBlocks, position });
+			await refresh();
+			showPreview = false;
+			previewBlocks = [];
+		} finally {
+			inserting = false;
+		}
+	}
+
+	function cancelPreview(): void {
+		showPreview = false;
+		previewBlocks = [];
+	}
+
+	function onKey(e: KeyboardEvent): void {
+		if (e.key === 'Escape' && showPreview && !inserting) cancelPreview();
+	}
+
 	$effect(() => () => stopTimer());
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="es">
 	<div class="bar">
@@ -287,14 +323,21 @@
 		</div>
 	</div>
 
-	{#if ingestBusy || ingestDone}
+	{#if ingestBusy || ingestStage === 'error'}
 		<div class="ingest" class:err={ingestStage === 'error'}>
 			<div class="ingest-top">
-				<span>{ingestDone || ingestStatus}</span>
+				<span>{ingestStatus}</span>
 				<span class="mono">{ingestElapsed}s{ingestTokens ? ` · ${ingestTokens} tok` : ''}</span>
 			</div>
 			{#if ingestBusy}
 				<div class="track"><div class="fill" class:pulse={ingestStage === 'converting'} style="width:{ingestPct}%"></div></div>
+			{/if}
+			{#if ingestEvents.length}
+				<ul class="log mini">
+					{#each ingestEvents.slice(-4) as ev (ev.t)}
+						<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>
+					{/each}
+				</ul>
 			{/if}
 		</div>
 	{/if}
@@ -379,7 +422,147 @@
 	</article>
 </div>
 
+{#if showPreview}
+	<div class="modal-bg">
+		<div class="modal" role="dialog" aria-modal="true" aria-label="AI 转译预览" tabindex="-1">
+			<header class="modal-head">
+				<strong>AI 转译预览 · {previewBlocks.length} 块</strong>
+				<span class="badge">{ingestUsedAgent ? `qwen3.7-plus · ${ingestTokens} tokens` : '本地解析'}</span>
+			</header>
+			<div class="modal-body">
+				<div class="preview-pane">
+					{#if previewRender.length === 0}<p class="hint">没有可用内容。</p>{/if}
+					{#each previewRender as block (block.id)}
+						{#if block.type === 'quiz'}
+							<div class="quiz-ph">📝 题目区</div>
+						{:else}
+							<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />
+						{/if}
+					{/each}
+				</div>
+				<aside class="log-pane">
+					<div class="rail-label">事件日志</div>
+					<ul class="log">
+						{#each ingestEvents as ev (ev.t)}
+							<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>
+						{/each}
+					</ul>
+				</aside>
+			</div>
+			<footer class="modal-foot">
+				<label class="pos">插入位置
+					<select bind:value={insertPos}>
+						<option value="start">章节开头</option>
+						{#each section.blocks as b, i (b.id)}
+							<option value={b.id}>第 {i + 1} 块之后 · {TYPE_LABEL[b.type]}</option>
+						{/each}
+						<option value="end">章节末尾</option>
+					</select>
+				</label>
+				<div class="spacer"></div>
+				<button class="btn-sm ghost" onclick={cancelPreview} disabled={inserting}>取消</button>
+				<button class="btn-sm primary" onclick={confirmInsert} disabled={inserting}>
+					{inserting ? '插入中…' : `确认插入(${previewBlocks.length} 块)`}
+				</button>
+			</footer>
+		</div>
+	</div>
+{/if}
+
 <style>
+	.modal-bg {
+		position: fixed;
+		inset: 0;
+		z-index: 100;
+		background: rgba(0, 0, 0, 0.45);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-6);
+	}
+	.modal {
+		width: min(960px, 100%);
+		max-height: 86vh;
+		display: flex;
+		flex-direction: column;
+		background: var(--surface-elevated);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-2xl);
+		box-shadow: var(--shadow-lg);
+		overflow: hidden;
+	}
+	.modal-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--space-4) var(--space-6);
+		border-bottom: 1px solid var(--border-default);
+	}
+	.modal-head strong {
+		font-size: var(--text-lg);
+		color: var(--text-primary);
+	}
+	.modal-body {
+		flex: 1;
+		min-height: 0;
+		display: grid;
+		grid-template-columns: 1fr 280px;
+	}
+	.preview-pane {
+		overflow-y: auto;
+		padding: var(--space-6) var(--space-8);
+		border-right: 1px solid var(--border-subtle);
+	}
+	.log-pane {
+		overflow-y: auto;
+		padding: var(--space-5);
+		background: var(--surface-page);
+	}
+	.log {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.log li {
+		font-size: var(--text-xs);
+		color: var(--text-secondary);
+		line-height: 1.5;
+	}
+	.log.mini {
+		margin-top: var(--space-2);
+	}
+	.log .mono {
+		color: var(--text-brand);
+		margin-right: var(--space-2);
+	}
+	.modal-foot {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-4) var(--space-6);
+		border-top: 1px solid var(--border-default);
+	}
+	.modal-foot .spacer {
+		flex: 1;
+	}
+	.pos {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
+	}
+	.pos select {
+		padding: var(--space-1) var(--space-2);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		background: var(--surface-page);
+		color: var(--text-primary);
+	}
+
 	.es {
 		height: calc(100vh - 56px);
 		display: flex;

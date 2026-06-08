@@ -76,3 +76,13 @@ export const updateSectionSchema = z.object({
 	minDwellMs: z.number().int().min(0).max(3600000).optional()
 });
 export const reorderSchema = z.object({ orderedIds: z.array(sectionId).max(200) });
+
+export const insertBlocksSchema = z.object({
+	sectionId,
+	blocks: z.array(blockInputSchema).min(1).max(80),
+	position: z.union([
+		z.literal('start'),
+		z.literal('end'),
+		z.object({ afterId: z.string().min(1).max(100) })
+	])
+});
