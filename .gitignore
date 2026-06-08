@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+.svelte-kit/
+build/
+dist/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Visual companion brainstorm artifacts
+.superpowers/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
