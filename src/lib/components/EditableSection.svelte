@@ -395,11 +395,18 @@
 				</span>
 			</div>
 			{#if ingestBusy}
-				<div class="track"><div class="fill" class:pulse={ingestStage === 'converting'} style="width:{ingestPct}%"></div></div>
+				<div class="track">
+					{#if ingestStage === 'converting'}
+						<!-- AI call is long & open-ended: indeterminate sweep reads as "working" -->
+						<div class="fill indeterminate"></div>
+					{:else}
+						<div class="fill" style="width:{ingestPct}%"></div>
+					{/if}
+				</div>
 			{/if}
 			{#if showLog && ingestEvents.length}
 				<ul class="log">
-					{#each ingestEvents as ev (ev.t)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>{/each}
+					{#each ingestEvents as ev, evi (evi)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>{/each}
 				</ul>
 			{/if}
 		</div>
@@ -578,7 +585,7 @@
 			</div>
 			<aside class="log-pane">
 				<div class="rail-label">事件日志</div>
-				<ul class="log">{#each ingestEvents as ev (ev.t)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>{/each}</ul>
+				<ul class="log">{#each ingestEvents as ev, evi (evi)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>{/each}</ul>
 			</aside>
 		</div>
 		<footer class="modal-foot">
@@ -742,12 +749,21 @@
 		border-radius: var(--radius-full);
 		transition: width var(--transition-moderate);
 	}
-	.fill.pulse {
-		animation: pulse 1.2s ease-in-out infinite;
+	.fill.indeterminate {
+		width: 40%;
+		will-change: transform;
+		animation: indet 1.3s var(--ease-out) infinite;
 	}
-	@keyframes pulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.55; }
+	@keyframes indet {
+		0% { transform: translateX(-115%); }
+		100% { transform: translateX(315%); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.fill.indeterminate {
+			animation: none;
+			width: 100%;
+			opacity: 0.6;
+		}
 	}
 
 	.canvas {
