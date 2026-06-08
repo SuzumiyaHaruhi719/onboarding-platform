@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useI18n } from '$lib/i18n/context';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { DictKey } from '$lib/i18n';
 	import type { SectionRequirementsView } from '$lib/content/types';
 
@@ -32,7 +33,7 @@
 	{#each items as item (item.key)}
 		{@const met = isMet(item.key)}
 		<li class:met>
-			<span class="mark" class:met aria-hidden="true">{met ? '✓' : ''}</span>
+			<span class="mark" class:met aria-hidden="true">{#if met}<Icon name="check" size={13} stroke={3} />{/if}</span>
 			<span class="label">{i18n().t(item.label)}</span>
 		</li>
 	{/each}

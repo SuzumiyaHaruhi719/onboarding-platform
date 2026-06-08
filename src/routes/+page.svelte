@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { useI18n } from '$lib/i18n/context';
+	import Icon from '$lib/components/Icon.svelte';
 
 	const i18n = useI18n();
 	let busy = $state(false);
@@ -25,16 +26,16 @@
 
 	<div class="cards">
 		<button class="role-card" onclick={() => pick('learner')} disabled={busy}>
-			<span class="emoji">🎓</span>
+			<span class="chip"><Icon name="graduation-cap" size={28} /></span>
 			<h3>{i18n().t('role.learner')}</h3>
 			<p>{i18n().t('role.learner.desc')}</p>
-			<span class="go">{i18n().t('learn.continue')} →</span>
+			<span class="go">{i18n().t('learn.continue')} <Icon name="arrow-right" size={16} /></span>
 		</button>
 		<button class="role-card" onclick={() => pick('editor')} disabled={busy}>
-			<span class="emoji">✍️</span>
+			<span class="chip"><Icon name="square-pen" size={28} /></span>
 			<h3>{i18n().t('role.editor')}</h3>
 			<p>{i18n().t('role.editor.desc')}</p>
-			<span class="go">{i18n().t('learn.continue')} →</span>
+			<span class="go">{i18n().t('learn.continue')} <Icon name="arrow-right" size={16} /></span>
 		</button>
 	</div>
 </section>
@@ -95,15 +96,15 @@
 		text-align: center;
 	}
 	.role-card:hover:not(:disabled) {
-		box-shadow: var(--shadow-md);
-		transform: translateY(-2px);
-		border-color: var(--border-strong);
+		box-shadow: var(--shadow-lg);
+		transform: translateY(-3px);
+		border-color: var(--brand-300);
 	}
 	.role-card:disabled {
 		opacity: 0.6;
 		cursor: progress;
 	}
-	.emoji {
+	.chip {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -112,8 +113,12 @@
 		border-radius: var(--radius-full);
 		background: var(--brand-50);
 		border: 1px solid var(--brand-200);
-		font-size: 28px;
+		color: var(--text-brand);
 		margin-bottom: var(--space-2);
+		transition: transform var(--transition-base);
+	}
+	.role-card:hover:not(:disabled) .chip {
+		transform: scale(1.08);
 	}
 	.role-card h3 {
 		font-size: var(--text-xl);
@@ -126,6 +131,9 @@
 		margin: 0;
 	}
 	.go {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 		margin-top: var(--space-3);
 		font-size: var(--text-sm);
 		font-weight: 600;
@@ -134,9 +142,15 @@
 		transform: translateY(4px);
 		transition: var(--transition-base);
 	}
+	.go :global(.icon) {
+		transition: transform var(--transition-base);
+	}
 	.role-card:hover:not(:disabled) .go {
 		opacity: 1;
 		transform: translateY(0);
+	}
+	.role-card:hover:not(:disabled) .go :global(.icon) {
+		transform: translateX(3px);
 	}
 	@media (max-width: 640px) {
 		.cards {

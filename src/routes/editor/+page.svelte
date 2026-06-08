@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -55,7 +56,7 @@
 			<p class="eyebrow"><span class="dot"></span>编辑者工作区</p>
 			<h1>课程内容管理</h1>
 		</div>
-		<a class="preview-link" href="/learn">以学员身份预览 →</a>
+		<a class="preview-link" href="/learn">以学员身份预览 <Icon name="arrow-right" size={15} /></a>
 	</header>
 
 	<div class="newmod">
@@ -142,6 +143,9 @@
 		margin: 0;
 	}
 	.preview-link {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 		font-size: var(--text-sm);
 		color: var(--text-brand);
 		white-space: nowrap;

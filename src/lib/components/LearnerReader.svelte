@@ -4,6 +4,7 @@
 	import ProgressRing from '$lib/components/ProgressRing.svelte';
 	import ContinueButton from '$lib/components/ContinueButton.svelte';
 	import RequirementChecklist from '$lib/components/RequirementChecklist.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import { useI18n } from '$lib/i18n/context';
 	import { startHeartbeat, type HeartbeatController } from '$lib/anti-skip/heartbeat';
 	import type { VideoInterval, SectionView } from '$lib/content/types';
@@ -107,7 +108,7 @@
 			</div>
 
 			{#if complete}
-				<p class="done">✓ {i18n().t('learn.allDone')}</p>
+				<p class="done"><Icon name="circle-check" size={16} /> {i18n().t('learn.allDone')}</p>
 			{/if}
 
 			<ContinueButton enabled={complete} onclick={onContinue} />

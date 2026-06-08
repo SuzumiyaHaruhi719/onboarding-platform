@@ -2,16 +2,17 @@
 	import { scale } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import type { BlockInput } from '$lib/content/types';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { onpick, onclose }: { onpick: (type: BlockInput['type']) => void; onclose: () => void } =
 		$props();
 
 	const TYPES: { type: BlockInput['type']; icon: string; label: string; desc: string }[] = [
-		{ type: 'richtext', icon: '¶', label: '富文本', desc: '标题 / 正文 / 列表 / 加粗(Markdown,类 Word)' },
-		{ type: 'callout', icon: '!', label: '提示框', desc: '信息 / 警告 / 成功' },
-		{ type: 'image', icon: '🖼', label: '图片', desc: '插入图片 URL' },
-		{ type: 'video', icon: '🎬', label: '视频', desc: '上传或粘贴视频' },
-		{ type: 'quiz', icon: '✓', label: '题目', desc: '在此处展示本节题目' }
+		{ type: 'richtext', icon: 'file-text', label: '富文本', desc: '标题 / 正文 / 列表 / 加粗(Markdown,类 Word)' },
+		{ type: 'callout', icon: 'info', label: '提示框', desc: '信息 / 警告 / 成功' },
+		{ type: 'image', icon: 'image', label: '图片', desc: '插入图片 URL' },
+		{ type: 'video', icon: 'video', label: '视频', desc: '上传或粘贴视频' },
+		{ type: 'quiz', icon: 'circle-check', label: '题目', desc: '在此处展示本节题目' }
 	];
 
 	function onKey(e: KeyboardEvent): void {
@@ -26,7 +27,7 @@
 	<div class="menu-title">添加内容块</div>
 	{#each TYPES as t (t.type)}
 		<button class="menu-item" role="menuitem" onclick={() => onpick(t.type)}>
-			<span class="ic">{t.icon}</span>
+			<span class="ic"><Icon name={t.icon} size={18} /></span>
 			<span class="txt">
 				<span class="lbl">{t.label}</span>
 				<span class="desc">{t.desc}</span>

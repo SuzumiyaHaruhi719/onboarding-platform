@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { QuizInput, EditorQuiz } from '$lib/content/types';
 
 	let {
@@ -94,10 +95,10 @@
 						value={options[i] ?? ''}
 						oninput={(e) => (options[i] = e.currentTarget.value)}
 					/>
-					<button class="x" onclick={() => removeOption(i)} disabled={options.length <= 2} aria-label="删除选项">✕</button>
+					<button class="x" onclick={() => removeOption(i)} disabled={options.length <= 2} aria-label="删除选项"><Icon name="x" size={15} /></button>
 				</div>
 			{/each}
-			<button class="btn-ghost" onclick={addOption}>+ 添加选项</button>
+			<button class="btn-ghost" onclick={addOption}><Icon name="plus" size={14} /> 添加选项</button>
 		</div>
 		<p class="hint">勾选/圆点标记正确答案({type === 'single' ? '单选一个' : '多选可多个'})</p>
 	{/if}
@@ -176,11 +177,17 @@
 		cursor: pointer;
 	}
 	.x {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		border: none;
 		background: transparent;
 		color: var(--text-tertiary);
 		cursor: pointer;
 		padding: var(--space-1);
+	}
+	.x:hover:not(:disabled) {
+		color: var(--error);
 	}
 	.x:disabled {
 		opacity: 0.3;
@@ -212,12 +219,14 @@
 		cursor: pointer;
 	}
 	.btn-ghost {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 		padding: var(--space-2) var(--space-4);
 		border: none;
 		background: transparent;
 		color: var(--text-brand);
 		cursor: pointer;
 		font-size: var(--text-sm);
-		text-align: left;
 	}
 </style>

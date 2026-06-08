@@ -8,6 +8,7 @@
 	import BlockMenu from '$lib/components/editor/BlockMenu.svelte';
 	import RichTextEditor from '$lib/components/editor/RichTextEditor.svelte';
 	import QuizForm from '$lib/components/editor/QuizForm.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { SectionView, Block, BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
 
 	let { section, quizzes }: { section: SectionView; quizzes: EditorQuiz[] } = $props();
@@ -364,16 +365,16 @@
 				<input type="number" min="0" bind:value={minDwellSec} oninput={scheduleMetaSave} /> 秒
 			</label>
 			<span class="save-status" class:saving={saveStatus === 'saving'}>
-				{saveStatus === 'saving' ? '保存中…' : saveStatus === 'saved' ? '已保存 ✓' : ''}
+				{#if saveStatus === 'saving'}保存中…{:else if saveStatus === 'saved'}已保存 <Icon name="check" size={13} stroke={2.5} />{/if}
 			</span>
 		</div>
 		<div class="bar-right">
 			<label class="btn-sm ghost upload" class:busy={ingestBusy}>
-				{ingestBusy ? 'AI 转译中…' : '🤖 AI 转译文件'}
+				{#if ingestBusy}AI 转译中…{:else}<Icon name="sparkles" size={15} /> AI 转译文件{/if}
 				<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 			</label>
 			<label class="btn-sm ghost upload" class:busy={uploading}>
-				{uploading ? '上传中…' : '🎬 上传视频'}
+				{#if uploading}上传中…{:else}<Icon name="video" size={15} /> 上传视频{/if}
 				<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
 			</label>
 		</div>
@@ -413,18 +414,18 @@
 			{:else}
 				{#if section.blocks.length === 0 && !pending}
 					<div class="empty">
-						<div class="empty-icon">✎</div>
+						<div class="empty-icon"><Icon name="square-pen" size={24} /></div>
 						<h3>开始创建本节内容</h3>
 						<p>添加标题、正文、列表、视频或题目;也可以上传文档让 AI 转译成章节。</p>
 						<div class="empty-actions">
 							<div class="menu-anchor">
-								<button class="btn primary" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}>＋ 添加内容块</button>
+								<button class="btn primary" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}><Icon name="plus" size={16} /> 添加内容块</button>
 								{#if menuAt === 'start'}
 									<BlockMenu onpick={(t) => pickType('start', t)} onclose={() => (menuAt = null)} />
 								{/if}
 							</div>
 							<label class="btn ghost upload" class:busy={ingestBusy}>
-								🤖 AI 转译文件
+								<Icon name="sparkles" size={16} /> AI 转译文件
 								<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 							</label>
 						</div>
@@ -453,7 +454,7 @@
 					>
 						<div class="gutter left">
 							<div class="menu-anchor">
-								<button class="g-btn" title="在此后添加" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}>＋</button>
+								<button class="g-btn" title="在此后添加" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
 								{#if menuAt === block.id}
 									<BlockMenu onpick={(t) => pickType(block.id, t)} onclose={() => (menuAt = null)} />
 								{/if}
@@ -476,7 +477,7 @@
 									<BlockForm initial={block as Block} onsave={(b) => updateBlock(block.id, b)} oncancel={() => (editingId = null)} />
 								{/if}
 							{:else if block.type === 'quiz'}
-								<div class="quiz-ph">📝 题目区 — 学员在此作答(本节 {quizzes.length} 题,见下方题库)</div>
+								<div class="quiz-ph"><Icon name="file-text" size={16} />题目区 — 学员在此作答(本节 {quizzes.length} 题,见下方题库)</div>
 							{:else}
 								<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />
 							{/if}
@@ -484,8 +485,8 @@
 
 						<div class="gutter right">
 							<span class="badge">{TYPE_LABEL[block.type]}</span>
-							<button class="g-btn" title="编辑" onclick={() => (editingId = editingId === block.id ? null : block.id)}>✎</button>
-							<button class="g-btn danger" title="删除" onclick={() => deleteBlock(block as Block, i)} disabled={busy}>🗑</button>
+							<button class="g-btn" title="编辑" onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /></button>
+							<button class="g-btn danger" title="删除" onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /></button>
 						</div>
 
 						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
@@ -502,7 +503,7 @@
 
 				{#if section.blocks.length > 0}
 					<div class="add-end menu-anchor">
-						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}>＋ 添加内容块</button>
+						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}><Icon name="plus" size={16} /> 添加内容块</button>
 						{#if menuAt === 'end'}
 							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
 						{/if}
@@ -522,7 +523,7 @@
 				<section class="qbank">
 					<div class="qbank-head">
 						<h3>题库({quizzes.length})</h3>
-						<button class="btn-sm ghost" onclick={() => (addingQuiz = true)} disabled={addingQuiz}>＋ 添加题目</button>
+						<button class="btn-sm ghost" onclick={() => (addingQuiz = true)} disabled={addingQuiz}><Icon name="plus" size={14} /> 添加题目</button>
 					</div>
 					<p class="hint">答错题目的学员无法进入下一节。题目通过"题目"内容块在正文中呈现。</p>
 					{#if addingQuiz}<QuizForm onsave={createQuiz} oncancel={() => (addingQuiz = false)} />{/if}
@@ -533,8 +534,8 @@
 							<div class="qrow">
 								<span class="badge">{q.type === 'single' ? '单选' : q.type === 'multiple' ? '多选' : '判断'}</span>
 								<span class="qq">{q.question}</span>
-								<button class="g-btn" title="编辑" onclick={() => (editingQuizId = q.id)}>✎</button>
-								<button class="g-btn danger" title="删除" onclick={() => deleteQuiz(q.id)} disabled={busy}>🗑</button>
+								<button class="g-btn" title="编辑" onclick={() => (editingQuizId = q.id)}><Icon name="pencil" size={15} /></button>
+								<button class="g-btn danger" title="删除" onclick={() => deleteQuiz(q.id)} disabled={busy}><Icon name="trash-2" size={15} /></button>
 							</div>
 						{/if}
 					{/each}
@@ -561,7 +562,7 @@
 			<div class="preview-pane">
 				{#if previewRender.length === 0}<p class="hint">没有可用内容。</p>{/if}
 				{#each previewRender as block (block.id)}
-					{#if block.type === 'quiz'}<div class="quiz-ph">📝 题目区</div>
+					{#if block.type === 'quiz'}<div class="quiz-ph"><Icon name="file-text" size={16} />题目区</div>
 					{:else}<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />{/if}
 				{/each}
 			</div>
@@ -670,6 +671,9 @@
 		color: var(--text-primary);
 	}
 	.save-status {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 		font-size: var(--text-xs);
 		color: var(--success);
 		min-width: 56px;
@@ -879,6 +883,9 @@
 		padding: 1px var(--space-1);
 	}
 	.quiz-ph {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		padding: var(--space-4);
 		border: 1px dashed var(--brand-200);
 		border-radius: var(--radius-lg);
@@ -897,6 +904,10 @@
 		margin-top: var(--space-3);
 	}
 	.add-end-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-1);
 		width: 100%;
 		padding: var(--space-3);
 		border: 1px dashed var(--border-strong);
@@ -954,6 +965,10 @@
 
 	.btn,
 	.btn-sm {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-1);
 		border-radius: var(--radius-lg);
 		font-weight: 600;
 		cursor: pointer;
@@ -988,6 +1003,7 @@
 	.upload {
 		display: inline-flex;
 		align-items: center;
+		gap: var(--space-1);
 	}
 	.upload.busy {
 		opacity: 0.6;

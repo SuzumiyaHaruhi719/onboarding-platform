@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useI18n } from '$lib/i18n/context';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let { enabled, onclick }: { enabled: boolean; onclick: () => void } = $props();
 	const i18n = useI18n();
@@ -7,7 +8,7 @@
 
 <button class="continue" disabled={!enabled} {onclick}>
 	<span>{i18n().t('learn.continue')}</span>
-	<span class="arrow" aria-hidden="true">→</span>
+	<span class="arrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
 </button>
 {#if !enabled}
 	<p class="hint">{i18n().t('learn.locked')}</p>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import type { ModuleWithSections } from '$lib/db/queries';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let {
 		modules,
@@ -27,12 +28,12 @@
 			{@const open = isUnlocked(s.id)}
 			{#if open}
 				<a class="navitem" class:active={page.params.sectionId === s.id} href={`/learn/${s.id}`}>
-					<span class="ic" class:done>{done ? '✓' : '▸'}</span>
+					<span class="ic" class:done><Icon name={done ? 'circle-check' : 'circle'} size={16} /></span>
 					<span class="title">{s.title}</span>
 				</a>
 			{:else}
 				<span class="navitem locked" aria-disabled="true">
-					<span class="ic">🔒</span>
+					<span class="ic"><Icon name="lock" size={15} /></span>
 					<span class="title">{s.title}</span>
 				</span>
 			{/if}
@@ -88,9 +89,12 @@
 		cursor: not-allowed;
 	}
 	.ic {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		width: 18px;
-		text-align: center;
 		flex: none;
+		color: var(--text-tertiary);
 	}
 	.ic.done {
 		color: var(--brand-500);

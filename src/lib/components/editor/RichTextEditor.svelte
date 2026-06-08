@@ -3,6 +3,7 @@
 	import { Editor } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
 	import { Markdown } from 'tiptap-markdown';
+	import Icon from '$lib/components/Icon.svelte';
 
 	let {
 		initial = '',
@@ -73,10 +74,10 @@
 		<button type="button" class="s" class:on={active('strike')} title="删除线" onclick={() => chain().toggleStrike().run()}>S</button>
 		<button type="button" class="code" class:on={active('code')} title="行内代码" onclick={() => chain().toggleCode().run()}>{'</>'}</button>
 		<span class="sep"></span>
-		<button type="button" class:on={active('bulletList')} title="无序列表" onclick={() => chain().toggleBulletList().run()}>•</button>
-		<button type="button" class:on={active('orderedList')} title="有序列表" onclick={() => chain().toggleOrderedList().run()}>1.</button>
-		<button type="button" class:on={active('blockquote')} title="引用" onclick={() => chain().toggleBlockquote().run()}>❝</button>
-		<button type="button" class:on={active('link')} title="链接" onclick={setLink}>🔗</button>
+		<button type="button" class="ico" class:on={active('bulletList')} title="无序列表" onclick={() => chain().toggleBulletList().run()}><Icon name="list" size={16} /></button>
+		<button type="button" class="ico" class:on={active('orderedList')} title="有序列表" onclick={() => chain().toggleOrderedList().run()}><Icon name="list-ordered" size={16} /></button>
+		<button type="button" class="ico" class:on={active('blockquote')} title="引用" onclick={() => chain().toggleBlockquote().run()}><Icon name="text-quote" size={16} /></button>
+		<button type="button" class="ico" class:on={active('link')} title="链接" onclick={setLink}><Icon name="link" size={16} /></button>
 	</div>
 
 	<div class="surface" bind:this={element}></div>
@@ -128,6 +129,11 @@
 		background: var(--brand-50);
 		border-color: var(--brand-200);
 		color: var(--text-brand);
+	}
+	.toolbar button.ico {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 	}
 	.toolbar .b {
 		font-weight: 800;
