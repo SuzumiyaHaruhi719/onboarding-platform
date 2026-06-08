@@ -1,12 +1,21 @@
 import { getContext, setContext } from 'svelte';
-import type { TranslateFn } from './index';
+import type { TranslateFn, Lang } from './index';
 
-const T_KEY = Symbol('i18n-translate');
-
-export function setTranslate(t: TranslateFn): void {
-	setContext(T_KEY, t);
+export interface I18n {
+	t: TranslateFn;
+	lang: Lang;
 }
 
-export function getTranslate(): TranslateFn {
-	return getContext<TranslateFn>(T_KEY);
+const I18N_KEY = Symbol('i18n');
+
+/**
+ * Store a *getter* (not a snapshot) so child components re-render reactively when
+ * the language changes. The provider passes `() => ($derived i18n value)`.
+ */
+export function setI18n(get: () => I18n): void {
+	setContext(I18N_KEY, get);
+}
+
+export function useI18n(): () => I18n {
+	return getContext<() => I18n>(I18N_KEY);
 }
