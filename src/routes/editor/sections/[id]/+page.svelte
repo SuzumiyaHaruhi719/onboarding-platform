@@ -20,6 +20,8 @@
 	let editingQuizId = $state<string | null>(null);
 	let uploading = $state(false);
 	let busy = $state(false);
+	let ingestBusy = $state(false);
+	let ingestMsg = $state('');
 
 	const TYPE_LABEL: Record<string, string> = {
 		heading: '标题',
@@ -138,6 +140,60 @@
 		}
 	}
 
+	const STATUS_LABEL: Record<string, string> = {
+		pending: '排队中…',
+		extracting: '提取文本…',
+		converting: '转译中…',
+		saving: '写入内容块…',
+		done: '完成',
+		error: '失败'
+	};
+
+	async function onIngestFile(e: Event): Promise<void> {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		ingestBusy = true;
+		ingestMsg = '上传中…';
+		const fd = new FormData();
+		fd.append('file', file);
+		fd.append('sectionId', data.section.id);
+		const res = await fetch('/api/editor/ingest', { method: 'POST', body: fd })
+			.then((r) => r.json())
+			.catch(() => null);
+		input.value = '';
+		if (!res?.ok) {
+			ingestBusy = false;
+			ingestMsg = '失败:' + (res?.error ?? '上传错误');
+			return;
+		}
+		const jobId: string = res.jobId;
+		const poll = async (): Promise<void> => {
+			const s = await fetch(`/api/editor/ingest?jobId=${jobId}`)
+				.then((r) => r.json())
+				.catch(() => null);
+			if (!s?.ok) {
+				ingestBusy = false;
+				ingestMsg = '状态查询失败';
+				return;
+			}
+			if (s.status === 'done') {
+				ingestBusy = false;
+				ingestMsg = `完成,新增 ${s.blocksCreated} 个内容块${s.usedAgent ? '(AI 转译)' : '(本地解析)'}`;
+				await invalidateAll();
+				return;
+			}
+			if (s.status === 'error') {
+				ingestBusy = false;
+				ingestMsg = '失败:' + (s.error ?? '转译失败');
+				return;
+			}
+			ingestMsg = STATUS_LABEL[s.status] ?? s.status;
+			setTimeout(poll, 1500);
+		};
+		void poll();
+	}
+
 	function answerText(q: EditorQuiz): string {
 		if (q.type === 'boolean') return q.answer === true ? '对' : '错';
 		if (q.type === 'single') return q.options[q.answer as number] ?? '?';
@@ -167,6 +223,16 @@
 		<div class="card-head">
 			<h2>内容块</h2>
 			<div class="head-actions">
+				<label class="btn-secondary upload" class:busy={ingestBusy}>
+					{ingestBusy ? '转译中…' : 'AI 转译文件'}
+					<input
+						type="file"
+						accept=".txt,.md,.markdown,.docx,.pdf,.pptx"
+						hidden
+						onchange={onIngestFile}
+						disabled={ingestBusy}
+					/>
+				</label>
 				<label class="btn-secondary upload">
 					{uploading ? '上传中…' : '上传视频'}
 					<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
@@ -174,6 +240,10 @@
 				<button class="btn-primary" onclick={() => (addingBlock = true)} disabled={addingBlock}>+ 添加块</button>
 			</div>
 		</div>
+
+		{#if ingestMsg}
+			<p class="ingest-status" class:busy={ingestBusy}>{ingestMsg}</p>
+		{/if}
 
 		{#if addingBlock}
 			<BlockForm onsave={createBlock} oncancel={() => (addingBlock = false)} />
@@ -317,6 +387,19 @@
 		outline: none;
 		border-color: var(--brand-500);
 		box-shadow: 0 0 0 3px var(--brand-200);
+	}
+	.ingest-status {
+		margin: 0 0 var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-lg);
+		background: var(--brand-50);
+		border: 1px solid var(--brand-200);
+		color: var(--text-brand);
+		font-size: var(--text-sm);
+	}
+	.upload.busy {
+		opacity: 0.6;
+		cursor: progress;
 	}
 	.blocks,
 	.quizzes {

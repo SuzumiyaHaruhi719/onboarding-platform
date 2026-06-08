@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq, asc, sql } from 'drizzle-orm';
 import { db, schema } from '$lib/db';
-import type { BlockInput, QuizInput } from './schemas';
+import type { BlockInput, QuizInput } from '$lib/content/types';
 
 function nextSectionOrder(moduleId: string): number {
 	const r = db
