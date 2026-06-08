@@ -4,6 +4,7 @@
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import BlockForm from '$lib/components/editor/BlockForm.svelte';
 	import BlockMenu from '$lib/components/editor/BlockMenu.svelte';
+	import RichTextEditor from '$lib/components/editor/RichTextEditor.svelte';
 	import QuizForm from '$lib/components/editor/QuizForm.svelte';
 	import type { SectionView, Block, BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
 
@@ -423,7 +424,13 @@
 				{/if}
 
 				{#if pending && (pending.at === 'start' || section.blocks.length === 0)}
-					<div class="inserting"><BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} /></div>
+					<div class="inserting">
+						{#if pending.type === 'richtext'}
+							<RichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+						{:else}
+							<BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+						{/if}
+					</div>
 				{/if}
 
 				{#each section.blocks as block, i (block.id)}
@@ -455,7 +462,11 @@
 
 						<div class="block-body">
 							{#if editingId === block.id}
-								<BlockForm initial={block as Block} onsave={(b) => updateBlock(block.id, b)} oncancel={() => (editingId = null)} />
+								{#if block.type === 'richtext'}
+									<RichTextEditor initial={block.markdown} onsave={(md) => updateBlock(block.id, { type: 'richtext', markdown: md })} oncancel={() => (editingId = null)} />
+								{:else}
+									<BlockForm initial={block as Block} onsave={(b) => updateBlock(block.id, b)} oncancel={() => (editingId = null)} />
+								{/if}
 							{:else if block.type === 'quiz'}
 								<div class="quiz-ph">📝 题目区 — 学员在此作答(本节 {quizzes.length} 题,见下方题库)</div>
 							{:else}
@@ -470,7 +481,13 @@
 						</div>
 
 						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
-							<div class="inserting after"><BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} /></div>
+							<div class="inserting after">
+								{#if pending.type === 'richtext'}
+									<RichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+								{:else}
+									<BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+								{/if}
+							</div>
 						{/if}
 					</div>
 				{/each}
@@ -482,7 +499,13 @@
 							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
 						{/if}
 						{#if pending && pending.at === 'end'}
-							<div class="inserting"><BlockForm presetType={pending.type} onsave={(b) => createBlock(b, 'end')} oncancel={() => (pending = null)} /></div>
+							<div class="inserting">
+								{#if pending.type === 'richtext'}
+									<RichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
+								{:else}
+									<BlockForm presetType={pending.type} onsave={(b) => createBlock(b, 'end')} oncancel={() => (pending = null)} />
+								{/if}
+							</div>
 						{/if}
 					</div>
 				{/if}

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { extractText } from './extract';
 import { convertWithAgent, hasAgentKey } from './agent';
-import { mdToBlocks, textToBlocks } from './converter';
+import { mdToBlocks, textToBlocks, blocksToMarkdown } from './converter';
 import { blockInputSchema } from './schemas';
 import type { BlockInput } from '$lib/content/types';
 
@@ -88,17 +88,19 @@ async function run(jobId: string, filename: string, buf: Buffer): Promise<void> 
 			log(`本地解析完成 · ${blocks.length} 块`);
 		}
 
-		// Validate; keep only schema-valid blocks. Do NOT save — await user choice.
+		// Collapse the converted content into a single editable Markdown rich-text
+		// block (Markdown is the storage foundation). Do NOT save — await user choice.
 		const valid = blocks.filter((b) => blockInputSchema.safeParse(b).success);
-		job.blocks = valid;
+		const mdDoc = blocksToMarkdown(valid);
+		job.blocks = mdDoc.trim() ? [{ type: 'richtext', markdown: mdDoc }] : [];
 		job.durationMs = Date.now() - job.startedAt;
-		if (valid.length === 0) {
+		if (job.blocks.length === 0) {
 			job.status = 'error';
-			job.error = '没有可用的内容块';
-			log('没有可用的内容块');
+			job.error = '没有可用的内容';
+			log('没有可用的内容');
 		} else {
 			job.status = 'ready';
-			log(`转译完成,生成 ${valid.length} 块,等待选择插入位置`);
+			log(`转译完成,已生成可编辑富文本(${valid.length} 段),等待选择插入位置`);
 		}
 	} catch (e) {
 		job.status = 'error';

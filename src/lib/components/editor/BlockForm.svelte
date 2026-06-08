@@ -70,6 +70,8 @@
 					: null;
 			case 'quiz':
 				return { type };
+			default:
+				return null; // richtext is handled by RichTextEditor, not this form
 		}
 	}
 

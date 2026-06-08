@@ -86,6 +86,35 @@ export function mdToBlocks(md: string): BlockInput[] {
 	return blocks;
 }
 
+/** Convert structured blocks into a single Markdown document (for the richtext block). */
+export function blocksToMarkdown(blocks: BlockInput[]): string {
+	const parts: string[] = [];
+	for (const b of blocks) {
+		switch (b.type) {
+			case 'heading':
+				parts.push((b.level === 2 ? '## ' : '### ') + b.text);
+				break;
+			case 'paragraph':
+				parts.push(b.text);
+				break;
+			case 'list':
+				parts.push(b.items.map((it, i) => (b.ordered ? `${i + 1}. ${it}` : `- ${it}`)).join('\n'));
+				break;
+			case 'quote':
+				parts.push('> ' + b.text + (b.cite ? `\n>\n> — ${b.cite}` : ''));
+				break;
+			case 'callout':
+				parts.push(`> **${b.title}**` + (b.body ? `\n>\n> ${b.body}` : ''));
+				break;
+			case 'richtext':
+				parts.push(b.markdown);
+				break;
+			// image / video / quiz are not expressible in plain Markdown — skipped.
+		}
+	}
+	return parts.filter((p) => p.trim()).join('\n\n');
+}
+
 /** Plain text → paragraph blocks split on blank lines. */
 export function textToBlocks(text: string): BlockInput[] {
 	return text

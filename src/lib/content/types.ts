@@ -27,7 +27,8 @@ export type Block =
 			body: string;
 	  }
 	| { id: string; type: 'video'; src: string; durationSec: number; poster?: string }
-	| { id: string; type: 'quiz' };
+	| { id: string; type: 'quiz' }
+	| { id: string; type: 'richtext'; markdown: string };
 
 export interface SectionRequirementsView {
 	minDwellMs: number;

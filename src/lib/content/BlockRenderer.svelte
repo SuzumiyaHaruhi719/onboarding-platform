@@ -8,6 +8,7 @@
 	import Callout from './blocks/Callout.svelte';
 	import VideoBlock from './blocks/VideoBlock.svelte';
 	import QuizBlock from './blocks/QuizBlock.svelte';
+	import RichTextBlock from './blocks/RichTextBlock.svelte';
 
 	let {
 		block,
@@ -40,4 +41,6 @@
 	<VideoBlock src={block.src} durationSec={block.durationSec} poster={block.poster} {onintervals} />
 {:else if block.type === 'quiz'}
 	<QuizBlock {quizzes} {sectionId} {onpassed} />
+{:else if block.type === 'richtext'}
+	<RichTextBlock markdown={block.markdown} />
 {/if}

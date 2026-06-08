@@ -5,11 +5,8 @@
 		$props();
 
 	const TYPES: { type: BlockInput['type']; icon: string; label: string; desc: string }[] = [
-		{ type: 'paragraph', icon: '¶', label: '正文', desc: '普通段落文字' },
-		{ type: 'heading', icon: 'H', label: '标题', desc: '小节标题(H2/H3)' },
-		{ type: 'list', icon: '☰', label: '列表', desc: '有序或无序列表' },
+		{ type: 'richtext', icon: '¶', label: '富文本', desc: '标题 / 正文 / 列表 / 加粗(Markdown,类 Word)' },
 		{ type: 'callout', icon: '!', label: '提示框', desc: '信息 / 警告 / 成功' },
-		{ type: 'quote', icon: '❝', label: '引用', desc: '引用语句' },
 		{ type: 'image', icon: '🖼', label: '图片', desc: '插入图片 URL' },
 		{ type: 'video', icon: '🎬', label: '视频', desc: '上传或粘贴视频' },
 		{ type: 'quiz', icon: '✓', label: '题目', desc: '在此处展示本节题目' }
