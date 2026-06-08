@@ -1583,3 +1583,112 @@ git add -A && git commit -m "chore(P1): 收尾验证与死代码清理"
 - **占位符**:无 TBD/TODO;关键逻辑均给完整代码;Svelte 组件给出可运行实现(样式以 token 为准,实现时按规范微调)。
 - **类型一致性**:`VideoInterval`/`ReadingState`/`SectionRequirements`/`CompletionResult` 跨 T7/T8/T12/T14/T15 一致;`evaluateCompletion`、`mergeIntervals`、`coverageRatio`、`gradeQuiz`、`attemptComplete`、`isUnlocked`、`startSection`、`progressMap` 命名前后一致;`SectionView`/`Block`/`QuizData` 跨 T6/T10/T14/T18 一致。
 - **已知微调点(实现时处理)**:`heartbeat.ts` 的 `onState` 回调在 P1 由页面轮询 `/complete` 评估,故采集器仅负责上报;`content/types.ts` 需 re-export `VideoInterval`。
+
+---
+
+## 联合审计修订 v2(Claude + Codex,2026-06-08)
+
+> 实现以本节为准,覆盖前面被点名的任务。Codex 只读审计,Claude 逐条核对取舍。
+
+### Schema 增列(T5)
+`progress` 增:`lastHeartbeatAt integer`、`quizAttempts integer default 0`、`quizLockedUntil integer`。
+
+### 常量(新增 `src/lib/anti-skip/constants.ts`)
+```ts
+export const HEARTBEAT_MS = 4000;
+export const MAX_CREDIT_WINDOW_MS = 15000; // 每次心跳最多记 15s,防伪造
+export const VIDEO_COVERAGE_THRESHOLD = 0.95;
+export const VIDEO_START_EPS = 1.0;        // 起点容差(秒)
+export const VIDEO_RATE_TOLERANCE = 1.25;  // 已看秒数 ≤ 墙钟秒数 * 容差
+export const QUIZ_MAX_ATTEMPTS = 5;
+export const QUIZ_COOLDOWN_MS = 30000;
+```
+
+### intervals.ts(T7)新增
+```ts
+export function sanitizeIntervals(input: VideoInterval[], maxEnd: number): VideoInterval[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((i) => i && Number.isFinite(i.start) && Number.isFinite(i.end) && i.end > i.start && i.start >= 0)
+    .map((i) => ({ start: Math.max(0, i.start), end: Math.min(maxEnd, i.end) }))
+    .filter((i) => i.end > i.start);
+}
+// 连续覆盖:合并后存在从 ~0 起、覆盖到 duration*threshold 的单段
+export function coversPrefix(intervals: VideoInterval[], duration: number, threshold: number, startEps: number): boolean {
+  if (duration <= 0) return true;
+  const merged = mergeIntervals(intervals);
+  const first = merged[0];
+  return !!first && first.start <= startEps && first.end >= duration * threshold;
+}
+```
+对应增加单测:非法/越界区间被清洗、`coversPrefix` 对有缺口的区间返回 false。
+
+### rules.ts(T8)— 视频规则改为「连续覆盖 + 墙钟闸」
+`ReadingState` 增 `elapsedMs: number`、`videoCovveredSec` 由服务端给 `videoIntervals` 计算。规则:
+```ts
+if (req.hasVideo) {
+  const dur = req.videoDurationSec ?? 0;
+  const contiguous = coversPrefix(state.videoIntervals, dur, req.videoCoverageThreshold, VIDEO_START_EPS);
+  const plausible = coveredSeconds(state.videoIntervals) <= (state.elapsedMs / 1000) * VIDEO_RATE_TOLERANCE;
+  if (!contiguous || !plausible) reasons.push('video');
+}
+```
+增单测:覆盖足够但墙钟不足(瞬时伪造)→ 不通过。
+
+### grade.ts(T9)— 多选严格校验
+`gradeQuiz(type, answer, submitted, optionCount?)`;多选要求:元素均为整数、无重复、`0 ≤ i < optionCount`,否则 false。增对应单测。
+
+### db/serde.ts(新增,集中 JSON 解析/校验)
+```ts
+export function parseIntervals(json: string): VideoInterval[] { /* try/catch → [] */ }
+export function parseBlockContent(type: string, json: string): Block { /* ... */ }
+export function parseOptions(json: string): string[] { /* ... */ }
+export function parseAnswer(json: string): number | number[] | boolean { /* ... */ }
+```
+queries.ts / progress.ts 一律走 serde,不散落 `JSON.parse`。
+
+### server/validate.ts(新增,端点入参校验)
+```ts
+export function asSectionId(v: unknown): string | null { return typeof v === 'string' && v.length > 0 && v.length < 100 ? v : null; }
+export function asIntervals(v: unknown, cap = 2000): VideoInterval[] { /* 数组、限长、Number.isFinite */ }
+export function asBool(v: unknown): boolean { return v === true; }
+export function asDwell(v: unknown): number { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; }
+```
+所有 `+server.ts` 先校验再入库;`heartbeat` 限制 `videoIntervals` 长度。
+
+### server/progress.ts(T12)— 服务端单调累计(核心重写)
+- 行增 `lastHeartbeatAt`。`applyHeartbeat`:重读行 → `window = min(now - (lastHeartbeatAt ?? startedAt), MAX_CREDIT_WINDOW_MS)`。
+  - dwell:`dwell = stored.dwellMs + clamp(clientDwell - stored.dwellMs, 0, window)`(单调、每窗封顶)。
+  - scrolledToBottom:`stored || client`(取或)。
+  - videoIntervals:`mergeIntervals([...parseIntervals(stored), ...sanitizeIntervals(client, duration)])`(取并、单调)。
+  - 写回并 `lastHeartbeatAt = now`。
+- `attemptComplete`:`startSection` 后**重读行**;`state.elapsedMs = now - startedAt`;`evaluateCompletion` 用服务端累计值;完成才 `status=completed`,并返回 `nextId`(完成后才给)。
+- `submitQuiz`:检查 `quizLockedUntil`;错答 `quizAttempts++`,达 `QUIZ_MAX_ATTEMPTS` 设 `quizLockedUntil = now + QUIZ_COOLDOWN_MS` 并重置计数;对答置 `quizPassed=1`。
+
+### API(T13)
+- 全部端点用 `validate.ts` 校验入参;`heartbeat`/`complete`/`quiz` 先 `isUnlocked` 守卫。
+- `complete` 返回 `{ complete, reasons, nextId? }`(`nextId` 仅在 `complete` 时给)。
+
+### VideoBlock(T14)
+- `onratechange`:强制 `playbackRate=1`;`onseeking/onseeked`:`currentTime > maxAllowed+0.5` 即回钳。
+- 仅在 `播放中` 累积「前向小增量」(单次 ≤ 1.5s),`onintervals` 上报清洗后的并集。
+
+### heartbeat.ts(T15)
+- 删除 `onState`(死代码);`$effect`/`start` 前 `if (!scrollEl) return;`;`document.hasFocus()` 失败容错。
+
+### i18n(T4)— 改 cookie + context(修 SSR)
+- `+layout.server.ts` 读 cookie `lang`(默认 `zh`)→ `data.lang`。
+- `+layout.svelte` `setContext('t', translator(data.lang))`;组件 `getContext`,用 `t('key')`(非 store)。
+- `LangToggle` 写 cookie + `invalidateAll()`(SSR 按新语言重渲,无水合不匹配)。
+- 同步设 `document.documentElement.lang`。
+
+### Sidebar(T17)
+- 用 `import { page } from '$app/state'`(`page.params.sectionId`,非 `$page`)。
+
+### 排序(T17/T18)
+- `orderedSectionIds` 排序加稳定 tiebreaker:`(moduleOrder, sectionOrder, id)`。
+
+### P1 明确约定 / 推迟项
+- **单视频/节**:P1 每节至多一个 `video` 块(渲染与判定按首个;seed 遵守)。多视频留待后续。
+- **uid cookie 未签名**:P1 无敏感数据,接受;P4 真鉴权时签名/服务端会话。
+- **防跳过集成/E2E 测试**:按用户偏好(功能测试待要求)推迟;强烈建议后续补「锁定节不下发内容 / 伪造心跳被拒 / 未达标无法 complete」三类 API 测试。
