@@ -16,4 +16,7 @@ declare global {
 	}
 }
 
+// PDF.js legacy build is imported dynamically for PDF text extraction (no bundled types for this subpath).
+declare module 'pdfjs-dist/legacy/build/pdf.mjs';
+
 export {};
