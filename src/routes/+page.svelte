@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { useI18n } from '$lib/i18n/context';
 
 	const i18n = useI18n();
@@ -12,6 +12,8 @@
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ role })
 		}).catch(() => {});
+		// Refresh cached layout data so role-dependent views update immediately.
+		await invalidateAll();
 		await goto(role === 'editor' ? '/editor' : '/learn');
 	}
 </script>

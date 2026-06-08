@@ -75,10 +75,30 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 	const blocks: BlockInput[] = [];
 	for (const candidate of arr) {
 		const r = blockInputSchema.safeParse(candidate);
-		if (r.success) blocks.push(r.data);
+		if (r.success) blocks.push(cleanBlock(r.data));
 	}
 	const tokens = typeof data.usage?.total_tokens === 'number' ? data.usage.total_tokens : 0;
 	return { blocks, tokens };
+}
+
+/** Our blocks render as plain text, so strip stray inline-markdown markers the model may emit. */
+function stripInlineMd(s: string): string {
+	return s.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '').trim();
+}
+function cleanBlock(b: BlockInput): BlockInput {
+	switch (b.type) {
+		case 'heading':
+		case 'paragraph':
+			return { ...b, text: stripInlineMd(b.text) };
+		case 'quote':
+			return { ...b, text: stripInlineMd(b.text), cite: b.cite ? stripInlineMd(b.cite) : b.cite };
+		case 'callout':
+			return { ...b, title: stripInlineMd(b.title), body: stripInlineMd(b.body) };
+		case 'list':
+			return { ...b, items: b.items.map(stripInlineMd) };
+		default:
+			return b;
+	}
 }
 
 /** Robustly pull a JSON value out of model output (handles code fences / stray prose). */
