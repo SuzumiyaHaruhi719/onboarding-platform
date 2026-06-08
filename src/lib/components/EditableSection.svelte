@@ -255,6 +255,7 @@
 	const STAGE_PCT: Record<string, number> = { pending: 8, extracting: 35, converting: 75, ready: 100, error: 100 };
 	const ingestPct = $derived(STAGE_PCT[ingestStage] ?? 0);
 	const previewRender = $derived(previewBlocks.map((b, i) => ({ ...b, id: `pv-${i}` }) as Block));
+	const hasBlocks = $derived(section.blocks.length > 0);
 
 	function stopTimer(): void {
 		if (timer) clearInterval(timer);
@@ -383,6 +384,41 @@
 		</div>
 	</div>
 
+	<section class="coach" aria-label="编辑工作台">
+		<div class="coach-card primary-card">
+			<span class="coach-step">01</span>
+			<div>
+				<strong>内容搭建</strong>
+				<span>{section.blocks.length} 个内容块</span>
+			</div>
+			<div class="menu-anchor">
+				<button class="coach-action" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}>
+					<Icon name="plus" size={15} /> 添加内容
+				</button>
+				{#if menuAt === 'start'}
+					<BlockMenu onpick={(t) => pickType('start', t)} onclose={() => (menuAt = null)} />
+				{/if}
+			</div>
+		</div>
+		<label class="coach-card upload-card" class:busy={ingestBusy}>
+			<span class="coach-step">02</span>
+			<div>
+				<strong>{ingestBusy ? 'AI 转译中' : 'AI 转译'}</strong>
+				<span>PDF / PPTX / Word 转成可编辑段落</span>
+			</div>
+			<span class="coach-action ghost"><Icon name="sparkles" size={15} /> 选择文件</span>
+			<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
+		</label>
+		<button class="coach-card preview-card" onclick={() => (preview = !preview)}>
+			<span class="coach-step">03</span>
+			<div>
+				<strong>{preview ? '正在预览' : '学生预览'}</strong>
+				<span>{hasBlocks ? '检查阅读路径和题目' : '添加内容后可预览'}</span>
+			</div>
+			<span class="coach-action ghost"><Icon name="graduation-cap" size={15} /> {preview ? '回到编辑' : '预览'}</span>
+		</button>
+	</section>
+
 	{#if ingestBusy || ingestStage === 'error'}
 		<div class="ingest" class:err={ingestStage === 'error'}>
 			<div class="ingest-top">
@@ -466,7 +502,7 @@
 					>
 						<div class="gutter left">
 							<div class="menu-anchor">
-								<button class="g-btn" title="在此后添加" aria-label="在此处下方添加内容块" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
+								<button class="g-btn add" title="在此后添加" aria-label="在此处下方添加内容块" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
 								{#if menuAt === block.id}
 									<BlockMenu onpick={(t) => pickType(block.id, t)} onclose={() => (menuAt = null)} />
 								{/if}
@@ -520,8 +556,8 @@
 
 						<div class="gutter right">
 							<span class="badge">{TYPE_LABEL[block.type]}</span>
-							<button class="g-btn" title="编辑" aria-label="编辑内容块" onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /></button>
-							<button class="g-btn danger" title="删除" aria-label="删除内容块" onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /></button>
+							<button class="block-action" title="编辑" aria-label="编辑内容块" onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /> 编辑</button>
+							<button class="block-action danger" title="删除" aria-label="删除内容块" onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /> 删除</button>
 						</div>
 
 						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
@@ -629,6 +665,100 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
+	}
+	.coach {
+		display: grid;
+		grid-template-columns: minmax(260px, 1.1fr) minmax(260px, 1fr) minmax(220px, 0.9fr);
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-6);
+		background: var(--surface-page);
+		border-bottom: 1px solid var(--border-subtle);
+	}
+	.coach-card {
+		min-width: 0;
+		display: grid;
+		grid-template-columns: 42px minmax(0, 1fr) auto;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-xl);
+		background: var(--surface-elevated);
+		box-shadow: var(--shadow-sm);
+		color: var(--text-primary);
+		text-align: left;
+		text-decoration: none;
+		transition: var(--transition-base);
+	}
+	button.coach-card,
+	label.coach-card {
+		font: inherit;
+		cursor: pointer;
+	}
+	.coach-card:hover {
+		border-color: var(--border-strong);
+		background: var(--surface-container);
+		transform: translateY(-1px);
+		box-shadow: var(--shadow-md);
+	}
+	.coach-card.busy {
+		cursor: progress;
+		opacity: 0.8;
+	}
+	.coach-step {
+		width: 38px;
+		height: 38px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-lg);
+		background: var(--surface-subtle);
+		color: var(--text-tertiary);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		font-weight: 800;
+	}
+	.primary-card .coach-step {
+		background: var(--brand-50);
+		border: 1px solid var(--brand-200);
+		color: var(--text-brand);
+	}
+	.coach-card strong,
+	.coach-card span {
+		display: block;
+	}
+	.coach-card strong {
+		font-size: var(--text-sm);
+		color: var(--text-primary);
+	}
+	.coach-card div > span {
+		margin-top: var(--space-1);
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.coach-action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-1);
+		min-height: 36px;
+		padding: var(--space-2) var(--space-3);
+		border: none;
+		border-radius: var(--radius-lg);
+		background: var(--brand-500);
+		color: var(--text-inverse);
+		font-size: var(--text-sm);
+		font-weight: 800;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.coach-action.ghost {
+		border: 1px solid var(--border-default);
+		background: var(--surface-elevated);
+		color: var(--text-secondary);
 	}
 	.mode-pill {
 		display: inline-flex;
@@ -774,7 +904,7 @@
 		overflow-y: auto;
 	}
 	.content {
-		max-width: 880px;
+		max-width: 1040px;
 		width: 100%;
 		margin: 0 auto;
 		padding: var(--space-10) var(--space-8) var(--space-24);
@@ -842,15 +972,24 @@
 	/* Block row with non-overlapping gutters */
 	.eb {
 		display: grid;
-		grid-template-columns: 64px minmax(0, 1fr) 128px;
+		grid-template-columns: 56px minmax(0, 1fr) 178px;
 		align-items: start;
-		gap: var(--space-2);
-		border-radius: var(--radius-lg);
-		border-top: 2px solid transparent;
-		padding: var(--space-1) 0;
+		gap: var(--space-3);
+		margin-bottom: var(--space-3);
+		padding: var(--space-3);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-xl);
+		background: var(--surface-elevated);
+		box-shadow: var(--shadow-sm);
+		transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+	}
+	.eb:hover {
+		border-color: var(--border-strong);
+		box-shadow: var(--shadow-md);
 	}
 	.eb.dragover {
-		border-top-color: var(--brand-500);
+		border-color: var(--brand-500);
+		transform: translateY(-1px);
 	}
 	.eb.dragging {
 		opacity: 0.5;
@@ -858,20 +997,18 @@
 	.gutter {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: 2px;
-		opacity: 0;
-		transition: opacity var(--transition-fast);
+		opacity: 1;
 		padding-top: var(--space-1);
 	}
 	.gutter.right {
 		justify-content: flex-end;
-	}
-	.eb:hover .gutter {
-		opacity: 1;
+		gap: var(--space-1);
 	}
 	.g-btn {
-		width: 32px;
-		height: 32px;
+		width: 36px;
+		height: 36px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -886,12 +1023,20 @@
 		background: var(--surface-hover);
 		color: var(--text-primary);
 	}
-	.g-btn.danger:hover:not(:disabled) {
-		color: var(--error);
-		border-color: var(--error);
+	.g-btn.add {
+		border-color: var(--brand-200);
+		background: var(--brand-50);
+		color: var(--text-brand);
 	}
 	.g-btn.handle {
 		cursor: grab;
+		font-size: 0;
+	}
+	.g-btn.handle::before {
+		content: '⋮⋮';
+		font-size: 14px;
+		letter-spacing: -4px;
+		transform: rotate(90deg);
 	}
 	.g-btn:disabled {
 		opacity: 0.4;
@@ -899,6 +1044,7 @@
 	}
 	.block-body {
 		min-width: 0;
+		padding: var(--space-1) 0;
 	}
 	.badge {
 		align-self: center;
@@ -910,6 +1056,32 @@
 		border: 1px solid var(--brand-200);
 		border-radius: var(--radius-sm);
 		padding: 1px var(--space-1);
+	}
+	.block-action {
+		min-height: 34px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-1);
+		padding: var(--space-1) var(--space-2);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		background: var(--surface-elevated);
+		color: var(--text-secondary);
+		font-size: var(--text-xs);
+		font-weight: 800;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: var(--transition-fast);
+	}
+	.block-action:hover:not(:disabled) {
+		background: var(--surface-hover);
+		color: var(--text-primary);
+	}
+	.block-action.danger:hover:not(:disabled) {
+		border-color: var(--error);
+		background: var(--error-bg);
+		color: var(--error);
 	}
 	.quiz-ph {
 		display: flex;
@@ -1204,6 +1376,22 @@
 			width: 100%;
 			flex-wrap: wrap;
 		}
+		.coach {
+			grid-template-columns: 1fr;
+			padding: var(--space-3) var(--space-4);
+		}
+		.coach-card {
+			grid-template-columns: 38px minmax(0, 1fr);
+		}
+		.coach-card > .menu-anchor {
+			grid-column: 1 / -1;
+			width: 100%;
+			display: block;
+		}
+		.coach-action {
+			grid-column: 1 / -1;
+			width: 100%;
+		}
 		.title-input {
 			flex: 1 1 100%;
 			min-width: 0;
@@ -1214,8 +1402,7 @@
 		.eb {
 			grid-template-columns: 1fr;
 			gap: var(--space-1);
-			padding: var(--space-2) 0 var(--space-4);
-			border-bottom: 1px solid var(--border-subtle);
+			padding: var(--space-3);
 		}
 		.gutter {
 			opacity: 1;

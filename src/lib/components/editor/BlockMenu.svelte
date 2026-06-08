@@ -8,11 +8,11 @@
 		$props();
 
 	const TYPES: { type: BlockInput['type']; icon: string; label: string; desc: string }[] = [
-		{ type: 'richtext', icon: 'file-text', label: '富文本', desc: '标题 / 正文 / 列表 / 加粗(Markdown,类 Word)' },
-		{ type: 'callout', icon: 'info', label: '提示框', desc: '信息 / 警告 / 成功' },
-		{ type: 'image', icon: 'image', label: '图片', desc: '插入图片 URL' },
-		{ type: 'video', icon: 'video', label: '视频', desc: '上传或粘贴视频' },
-		{ type: 'quiz', icon: 'circle-check', label: '题目', desc: '插入一道题目,学员需答对才能继续' }
+		{ type: 'richtext', icon: 'file-text', label: '图文正文', desc: '适合大多数课程内容' },
+		{ type: 'callout', icon: 'info', label: '重点提示', desc: '放安全提醒、注意事项、结论' },
+		{ type: 'image', icon: 'image', label: '图片说明', desc: '图片加替代文本和图注' },
+		{ type: 'video', icon: 'video', label: '视频片段', desc: '上传或粘贴视频地址' },
+		{ type: 'quiz', icon: 'circle-check', label: '检查题', desc: '学生答对后继续学习' }
 	];
 
 	function onKey(e: KeyboardEvent): void {
@@ -23,17 +23,25 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="menu-bg" role="presentation" onclick={onclose}></div>
-<div class="menu" role="menu" aria-label="选择内容块类型" transition:scale={{ start: 0.95, opacity: 0, duration: 150, easing: cubicOut }} style="transform-origin: top left;">
+<div
+	class="menu"
+	role="menu"
+	aria-label="选择内容块类型"
+	transition:scale={{ start: 0.95, opacity: 0, duration: 150, easing: cubicOut }}
+	style="transform-origin: top left;"
+>
 	<div class="menu-title">添加内容块</div>
-	{#each TYPES as t (t.type)}
-		<button class="menu-item" role="menuitem" onclick={() => onpick(t.type)}>
-			<span class="ic"><Icon name={t.icon} size={18} /></span>
-			<span class="txt">
-				<span class="lbl">{t.label}</span>
-				<span class="desc">{t.desc}</span>
-			</span>
-		</button>
-	{/each}
+	<div class="menu-grid">
+		{#each TYPES as t (t.type)}
+			<button class="menu-item" role="menuitem" onclick={() => onpick(t.type)}>
+				<span class="ic"><Icon name={t.icon} size={18} /></span>
+				<span class="txt">
+					<span class="lbl">{t.label}</span>
+					<span class="desc">{t.desc}</span>
+				</span>
+			</button>
+		{/each}
+	</div>
 </div>
 
 <style>
@@ -45,16 +53,16 @@
 	.menu {
 		position: absolute;
 		z-index: 61;
-		top: calc(100% + 4px);
+		top: calc(100% + 8px);
 		left: 0;
-		width: 260px;
-		max-height: 360px;
+		width: min(420px, calc(100vw - 32px));
+		max-height: 70vh;
 		overflow-y: auto;
 		background: var(--surface-elevated);
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-xl);
 		box-shadow: var(--shadow-lg);
-		padding: var(--space-2);
+		padding: var(--space-3);
 	}
 	.menu-title {
 		font-family: var(--font-mono);
@@ -62,50 +70,59 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--text-tertiary);
-		padding: var(--space-1) var(--space-2) var(--space-2);
+		padding: 0 var(--space-1) var(--space-2);
+	}
+	.menu-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--space-2);
 	}
 	.menu-item {
-		display: flex;
+		display: grid;
+		grid-template-columns: 40px minmax(0, 1fr);
 		align-items: center;
 		gap: var(--space-3);
 		width: 100%;
-		padding: var(--space-2);
-		border: none;
-		background: transparent;
-		border-radius: var(--radius-md);
+		min-height: 64px;
+		padding: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-container);
+		border-radius: var(--radius-lg);
 		cursor: pointer;
 		text-align: left;
 		transition: var(--transition-fast);
 	}
-	.menu-item:hover {
+	.menu-item:hover,
+	.menu-item:focus-visible {
+		outline: none;
+		border-color: var(--brand-500);
 		background: var(--surface-hover);
 	}
 	.ic {
-		flex: none;
-		width: 32px;
-		height: 32px;
+		width: 40px;
+		height: 40px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-lg);
 		background: var(--brand-50);
 		border: 1px solid var(--brand-200);
 		color: var(--text-brand);
-		font-weight: 700;
-		font-size: var(--text-base);
 	}
 	.txt {
 		display: flex;
 		flex-direction: column;
+		gap: var(--space-1);
 		min-width: 0;
 	}
 	.lbl {
 		font-size: var(--text-sm);
-		font-weight: 600;
+		font-weight: 800;
 		color: var(--text-primary);
 	}
 	.desc {
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
+		line-height: 1.45;
 	}
 </style>

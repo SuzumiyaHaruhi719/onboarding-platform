@@ -136,20 +136,21 @@
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-xl);
 		background: var(--surface-elevated);
+		box-shadow: var(--shadow-sm);
 		overflow: hidden;
 	}
 	.toolbar {
 		display: flex;
 		align-items: center;
-		gap: 2px;
+		gap: var(--space-1);
 		flex-wrap: wrap;
-		padding: var(--space-2);
+		padding: var(--space-3);
 		border-bottom: 1px solid var(--border-default);
 		background: var(--surface-subtle);
 	}
 	.toolbar button {
-		min-width: 30px;
-		height: 30px;
+		min-width: 34px;
+		height: 34px;
 		padding: 0 var(--space-2);
 		border: 1px solid transparent;
 		background: transparent;
@@ -242,15 +243,17 @@
 		color: var(--text-inverse);
 	}
 	.surface {
-		padding: var(--space-4) var(--space-5);
-		min-height: 120px;
-		max-height: 50vh;
+		padding: var(--space-6) var(--space-8);
+		min-height: 260px;
+		max-height: 58vh;
 		overflow-y: auto;
+		background: var(--surface-elevated);
 	}
 	.surface :global(.ProseMirror) {
 		outline: none;
-		color: var(--text-secondary);
+		color: var(--text-primary);
 		line-height: 1.75;
+		max-width: 72ch;
 	}
 	.surface :global(.ProseMirror:focus) {
 		outline: none;
@@ -299,14 +302,17 @@
 	.actions {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: var(--space-2);
-		padding: var(--space-3) var(--space-4);
+		padding: var(--space-4);
 		border-top: 1px solid var(--border-default);
+		background: var(--surface-page);
 	}
 	.btn {
+		min-height: 40px;
 		padding: var(--space-2) var(--space-4);
 		border-radius: var(--radius-lg);
-		font-weight: 600;
+		font-weight: 800;
 		font-size: var(--text-sm);
 		cursor: pointer;
 	}
@@ -319,6 +325,10 @@
 		border: 1px solid var(--border-default);
 		background: var(--surface-elevated);
 		color: var(--text-secondary);
+	}
+	.btn.ghost:hover {
+		background: var(--surface-hover);
+		color: var(--text-primary);
 	}
 	.tip {
 		font-size: var(--text-xs);
