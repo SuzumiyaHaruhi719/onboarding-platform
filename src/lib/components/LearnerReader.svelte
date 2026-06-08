@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import ProgressRing from '$lib/components/ProgressRing.svelte';
 	import ContinueButton from '$lib/components/ContinueButton.svelte';
@@ -77,7 +78,10 @@
 		if (Array.isArray(res.reasons)) reasons = res.reasons;
 		if (res.complete) {
 			await invalidateAll();
-			if (res.nextId) await goto(`/learn/${res.nextId}`);
+			if (res.nextId) {
+				const previewQuery = page.url.searchParams.get('view') === 'learner' ? '?view=learner' : '';
+				await goto(`/learn/${res.nextId}${previewQuery}`);
+			}
 		}
 	}
 </script>

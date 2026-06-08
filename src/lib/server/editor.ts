@@ -209,11 +209,29 @@ export function updateQuiz(id: string, quiz: QuizInput): void {
 
 
 // ---- Editor read model ----
+export interface EditorSectionSummary {
+	id: string;
+	title: string;
+	order: number;
+	minDwellMs: number;
+	blockCount: number;
+	quizCount: number;
+}
+
 export interface EditorModule {
 	id: string;
 	title: string;
 	order: number;
-	sections: { id: string; title: string; order: number; minDwellMs: number }[];
+	sections: EditorSectionSummary[];
+}
+
+function countRows(table: typeof schema.blocks | typeof schema.quizzes, sectionId: string): number {
+	const row = db
+		.select({ count: sql<number>`count(*)` })
+		.from(table)
+		.where(eq(table.sectionId, sectionId))
+		.get();
+	return Number(row?.count ?? 0);
 }
 
 export function listAllModules(): EditorModule[] {
@@ -237,5 +255,10 @@ export function listAllModules(): EditorModule[] {
 				.where(eq(schema.sections.moduleId, m.id))
 				.orderBy(asc(schema.sections.order), asc(schema.sections.id))
 				.all()
+				.map((s) => ({
+					...s,
+					blockCount: countRows(schema.blocks, s.id),
+					quizCount: countRows(schema.quizzes, s.id)
+				}))
 		}));
 }

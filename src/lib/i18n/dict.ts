@@ -10,7 +10,7 @@ export const dict = {
 	'role.learner': { zh: '我是新员工', en: "I'm a new hire" },
 	'role.learner.desc': { zh: '按章节完成入职阅读与测验', en: 'Complete onboarding section by section' },
 	'role.editor': { zh: '我是编辑者', en: "I'm an editor" },
-	'role.editor.desc': { zh: '管理课程内容(后续开放)', en: 'Manage course content (coming soon)' },
+	'role.editor.desc': { zh: '搭建课程、编辑章节并预览学生路径', en: 'Build courses, edit sections, and preview the learner path' },
 	'learn.continue': { zh: '继续', en: 'Continue' },
 	'learn.locked': { zh: '完成本节后解锁', en: 'Complete this section to unlock' },
 	'learn.progress': { zh: '本节进度', en: 'Section progress' },
@@ -23,8 +23,8 @@ export const dict = {
 	'chk.video': { zh: '完整观看视频', en: 'Watch the full video' },
 	'chk.quiz': { zh: '答对所有题目', en: 'Pass the questions' },
 	'learn.editorComingSoon': {
-		zh: '编辑者工作区将在 P2 开放,现在先以学员身份预览。',
-		en: 'The editor workspace ships in P2. Previewing as a learner for now.'
+		zh: '编辑者可以在课程控制台管理内容,也可以切换到学生视图预览。',
+		en: 'Editors can manage content in the course console and preview the learner view.'
 	},
 	'req.scroll': { zh: '读完本节正文', en: 'Read to the end' },
 	'req.dwell': { zh: '阅读时间不足', en: 'Keep reading a bit longer' },

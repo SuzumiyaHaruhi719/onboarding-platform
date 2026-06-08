@@ -110,4 +110,17 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
+	@media (max-width: 768px) {
+		.sidebar {
+			width: 100%;
+			position: static;
+			height: auto;
+			max-height: 38vh;
+			border-right: none;
+			border-bottom: 1px solid var(--border-subtle);
+		}
+		.navitem {
+			min-height: 38px;
+		}
+	}
 </style>
