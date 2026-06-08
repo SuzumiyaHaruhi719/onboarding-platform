@@ -15,6 +15,11 @@ dist/
 *.sqlite
 *.sqlite3
 *.db
+*.sqlite-shm
+*.sqlite-wal
+
+# Uploaded media (videos)
+uploads/
 
 # Visual companion brainstorm artifacts
 .superpowers/

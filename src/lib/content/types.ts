@@ -44,3 +44,22 @@ export interface SectionView {
 	quizzes: QuizData[];
 	requirements: SectionRequirementsView;
 }
+
+// ---- Editor input shapes (client-safe; server re-validates with Zod) ----
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+export type BlockInput = DistributiveOmit<Block, 'id'>;
+
+export type QuizInput =
+	| { type: 'single'; question: string; options: string[]; answer: number }
+	| { type: 'boolean'; question: string; options: string[]; answer: boolean }
+	| { type: 'multiple'; question: string; options: string[]; answer: number[] };
+
+/** Quiz as seen by the editor — includes the correct answer (editor-only). */
+export interface EditorQuiz {
+	id: string;
+	order: number;
+	type: QuizType;
+	question: string;
+	options: string[];
+	answer: number | number[] | boolean;
+}

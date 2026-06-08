@@ -12,7 +12,7 @@
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ role })
 		}).catch(() => {});
-		await goto('/learn');
+		await goto(role === 'editor' ? '/editor' : '/learn');
 	}
 </script>
 
