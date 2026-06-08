@@ -29,8 +29,6 @@ export type Block =
 	| { id: string; type: 'video'; src: string; durationSec: number; poster?: string }
 	| { id: string; type: 'quiz' };
 
-export type BlockType = Block['type'];
-
 export interface SectionRequirementsView {
 	minDwellMs: number;
 	hasVideo: boolean;

@@ -7,7 +7,7 @@ export function getTheme(): Theme {
 	return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
 }
 
-export function applyTheme(theme: Theme): void {
+function applyTheme(theme: Theme): void {
 	document.documentElement.dataset.theme = theme;
 	localStorage.setItem(KEY, theme);
 }

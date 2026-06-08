@@ -1,7 +1,6 @@
 import { dict, type DictKey, type Lang } from './dict';
 
 export type { Lang, DictKey };
-export { dict };
 
 export const LANG_COOKIE = 'lang';
 
