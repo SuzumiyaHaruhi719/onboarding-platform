@@ -4,9 +4,15 @@
 
 	let {
 		initial,
+		presetType,
 		onsave,
 		oncancel
-	}: { initial?: Block; onsave: (block: BlockInput) => void; oncancel: () => void } = $props();
+	}: {
+		initial?: Block;
+		presetType?: BlockInput['type'];
+		onsave: (block: BlockInput) => void;
+		oncancel: () => void;
+	} = $props();
 
 	type BType = BlockInput['type'];
 	const TYPES: { value: BType; label: string }[] = [
@@ -23,7 +29,8 @@
 	// Snapshot the prop once (forms are created fresh per edit); avoids reactive
 	// re-init and the state_referenced_locally warning.
 	const init = untrack(() => initial);
-	let type = $state<BType>(init?.type ?? 'paragraph');
+	const preset = untrack(() => presetType);
+	let type = $state<BType>(init?.type ?? preset ?? 'paragraph');
 	let text = $state(init && 'text' in init ? init.text : '');
 	let level = $state<2 | 3>(init?.type === 'heading' ? init.level : 2);
 	let ordered = $state(init?.type === 'list' ? init.ordered : false);
