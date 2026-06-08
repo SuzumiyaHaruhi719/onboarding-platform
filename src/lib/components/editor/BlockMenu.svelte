@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { scale } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import type { BlockInput } from '$lib/content/types';
 
 	let { onpick, onclose }: { onpick: (type: BlockInput['type']) => void; onclose: () => void } =
@@ -20,7 +22,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="menu-bg" role="presentation" onclick={onclose}></div>
-<div class="menu" role="menu" aria-label="选择内容块类型">
+<div class="menu" role="menu" aria-label="选择内容块类型" transition:scale={{ start: 0.95, opacity: 0, duration: 150, easing: cubicOut }} style="transform-origin: top left;">
 	<div class="menu-title">添加内容块</div>
 	{#each TYPES as t (t.type)}
 		<button class="menu-item" role="menuitem" onclick={() => onpick(t.type)}>

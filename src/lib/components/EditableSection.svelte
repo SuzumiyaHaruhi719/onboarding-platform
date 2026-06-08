@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { fade, scale, fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import { invalidateAll } from '$app/navigation';
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import BlockForm from '$lib/components/editor/BlockForm.svelte';
@@ -536,7 +538,7 @@
 	</div>
 
 	{#if toast}
-		<div class="toast">
+		<div class="toast" transition:fly={{ y: 16, duration: 260, easing: cubicOut }}>
 			<span>{toast.msg}</span>
 			<button onclick={() => toast?.undo()}>撤销</button>
 		</div>
@@ -544,7 +546,7 @@
 </div>
 
 {#if showPreview}
-	<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-label="AI 转译预览" tabindex="-1">
+	<div class="modal-bg" transition:fade={{ duration: 200 }}><div class="modal" role="dialog" aria-modal="true" aria-label="AI 转译预览" tabindex="-1" in:scale={{ start: 0.96, opacity: 0, duration: 320, easing: cubicOut }} out:scale={{ start: 0.98, opacity: 0, duration: 180 }}>
 		<header class="modal-head">
 			<strong>AI 转译预览 · {previewBlocks.length} 块</strong>
 			<span class="badge">{ingestUsedAgent ? `qwen3.7-plus · ${ingestTokens} tokens` : '本地解析'}</span>

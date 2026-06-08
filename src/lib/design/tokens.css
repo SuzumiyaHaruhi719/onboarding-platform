@@ -112,10 +112,13 @@
 	--radius-2xl: 16px;
 	--radius-full: 9999px;
 
-	/* 过渡 */
-	--transition-fast: 150ms cubic-bezier(0, 0, 0.2, 1);
-	--transition-base: 200ms cubic-bezier(0, 0, 0.2, 1);
-	--transition-moderate: 300ms cubic-bezier(0, 0, 0.2, 1);
+	/* 过渡 — Apple 风格缓动:进场 ease-out、退场 ease-in、弹性 spring */
+	--ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
+	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+	--transition-fast: 150ms var(--ease-out);
+	--transition-base: 220ms var(--ease-out);
+	--transition-moderate: 320ms var(--ease-out);
 
 	/* 布局 */
 	--content-max-width: 1200px;

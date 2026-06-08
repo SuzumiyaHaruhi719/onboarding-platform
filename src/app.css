@@ -58,6 +58,11 @@ button {
 	font-family: inherit;
 }
 
+/* Tactile press feedback on all buttons (transform-only, no layout shift) */
+button:active:not(:disabled) {
+	transform: scale(0.97);
+}
+
 /* Numerals that don't jitter (progress %, timers, counts) */
 .tabular-nums {
 	font-variant-numeric: tabular-nums;
@@ -93,11 +98,26 @@ button {
 	background-clip: padding-box;
 }
 
+/* Page crossfade (View Transitions API) */
+@media (prefers-reduced-motion: no-preference) {
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation-duration: 240ms;
+		animation-timing-function: var(--ease-out);
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
 		transition-duration: 0.01ms !important;
 		animation-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
 	}
 }

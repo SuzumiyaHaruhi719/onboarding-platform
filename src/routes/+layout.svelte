@@ -5,11 +5,27 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import LangToggle from '$lib/components/LangToggle.svelte';
+	import { onNavigate } from '$app/navigation';
 	import { setI18n, type I18n } from '$lib/i18n/context';
 	import { translator } from '$lib/i18n';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
+
+	// Smooth Apple-style crossfade between pages via the View Transitions API.
+	// Browsers without support (or with reduced-motion) simply navigate instantly.
+	onNavigate((navigation) => {
+		const doc = document as Document & {
+			startViewTransition?: (cb: () => Promise<void> | void) => void;
+		};
+		if (!doc.startViewTransition) return;
+		return new Promise((resolve) => {
+			doc.startViewTransition!(async () => {
+				resolve();
+				await navigation.complete;
+			});
+		});
+	});
 
 	// Reactive translator bound to the current language; provided as a getter so
 	// nested components re-render when the language changes.
