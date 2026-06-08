@@ -43,6 +43,13 @@
 	let overId = $state<string | null>(null);
 	let dragInsertType = $state<BlockInput['type'] | null>(null);
 	let dropTarget = $state<string | null>(null);
+	let pointerInsertType = $state<BlockInput['type'] | null>(null);
+	let pointerDragActive = $state(false);
+	let pointerStartX = $state(0);
+	let pointerStartY = $state(0);
+	let pointerX = $state(0);
+	let pointerY = $state(0);
+	let suppressTileClick = $state(false);
 	let insertTarget = $state<string>('end');
 	let newModuleTitle = $state('');
 	let newSectionTitle = $state('');
@@ -233,6 +240,53 @@
 	function endInsertDrag(): void {
 		dragInsertType = null;
 		dropTarget = null;
+	}
+	function insertionTargetFromPoint(x: number, y: number): string | null {
+		const element = document.elementFromPoint(x, y);
+		return element?.closest<HTMLElement>('[data-insert-target]')?.dataset.insertTarget ?? null;
+	}
+	function beginPointerInsert(e: PointerEvent, type: BlockInput['type']): void {
+		if (e.button !== 0) return;
+		pointerInsertType = type;
+		pointerDragActive = false;
+		suppressTileClick = false;
+		pointerStartX = e.clientX;
+		pointerStartY = e.clientY;
+		pointerX = e.clientX;
+		pointerY = e.clientY;
+		(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+	}
+	function movePointerInsert(e: PointerEvent): void {
+		if (!pointerInsertType) return;
+		pointerX = e.clientX;
+		pointerY = e.clientY;
+		const moved = Math.hypot(pointerX - pointerStartX, pointerY - pointerStartY);
+		if (!pointerDragActive && moved < 6) return;
+		if (!pointerDragActive) {
+			pointerDragActive = true;
+			suppressTileClick = true;
+			dragInsertType = pointerInsertType;
+			dropTarget = insertTarget;
+		}
+		const target = insertionTargetFromPoint(pointerX, pointerY);
+		if (target) dropTarget = target;
+	}
+	function endPointerInsert(e: PointerEvent): void {
+		if (!pointerInsertType) return;
+		(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+		if (pointerDragActive) {
+			const target = insertionTargetFromPoint(e.clientX, e.clientY) ?? dropTarget;
+			if (target) {
+				insertTarget = target;
+				pending = { at: posFrom(target), type: pointerInsertType, source: 'canvas' };
+				menuAt = null;
+				editingId = null;
+			}
+		}
+		pointerInsertType = null;
+		pointerDragActive = false;
+		endInsertDrag();
+		setTimeout(() => (suppressTileClick = false), 0);
 	}
 	function onInsertDragOver(e: DragEvent, target: string): void {
 		if (!dragInsertType && !isSideType(e.dataTransfer?.getData('application/x-block-type'))) return;
@@ -660,6 +714,7 @@
 						type="button"
 						class="insert-drop-zone"
 						class:active={dropTarget === 'start'}
+						data-insert-target="start"
 						ondragover={(e) => onInsertDragOver(e, 'start')}
 						ondrop={(e) => onInsertDrop(e, 'start')}
 						ondragleave={() => { if (dropTarget === 'start') dropTarget = null; }}
@@ -798,6 +853,7 @@
 							type="button"
 							class="insert-drop-zone"
 							class:active={dropTarget === block.id}
+							data-insert-target={block.id}
 							ondragover={(e) => onInsertDragOver(e, block.id)}
 							ondrop={(e) => onInsertDrop(e, block.id)}
 							ondragleave={() => { if (dropTarget === block.id) dropTarget = null; }}
@@ -816,6 +872,7 @@
 								type="button"
 								class="insert-drop-zone end"
 								class:active={dropTarget === 'end'}
+								data-insert-target="end"
 								ondragover={(e) => onInsertDragOver(e, 'end')}
 								ondrop={(e) => onInsertDrop(e, 'end')}
 								ondragleave={() => { if (dropTarget === 'end') dropTarget = null; }}
@@ -917,12 +974,13 @@
 							<button
 								class="module-tile"
 								class:active={pending?.type === t.type}
-								draggable="true"
 								title={tx('拖到正文中插入', 'Drag into the document to insert')}
 								aria-label={`${t.label()} · ${tx('拖到正文中插入', 'Drag into the document to insert')}`}
-								ondragstart={(e) => beginInsertDrag(e, t.type)}
-								ondragend={endInsertDrag}
-								onclick={() => pickSideType(t.type)}
+								onpointerdown={(e) => beginPointerInsert(e, t.type)}
+								onpointermove={movePointerInsert}
+								onpointerup={endPointerInsert}
+								onpointercancel={endPointerInsert}
+								onclick={() => { if (!suppressTileClick) pickSideType(t.type); }}
 							>
 								<span class="tile-icon"><Icon name={t.icon} size={18} /></span>
 								<span>
@@ -979,6 +1037,12 @@
 		<div class="toast" transition:fly={{ y: 16, duration: 260, easing: cubicOut }}>
 			<span>{toast.msg}</span>
 			{#if toast.undo}<button onclick={() => toast?.undo?.()}>{toast.actionLabel}</button>{/if}
+		</div>
+	{/if}
+	{#if pointerDragActive && pointerInsertType}
+		<div class="drag-ghost" style={`transform: translate(${pointerX + 14}px, ${pointerY + 14}px);`}>
+			<Icon name="move" size={14} />
+			<span>{typeLabel(pointerInsertType)}</span>
 		</div>
 	{/if}
 </div>
@@ -1487,10 +1551,15 @@
 		color: var(--text-primary);
 		text-align: left;
 		cursor: grab;
+		user-select: none;
+		touch-action: none;
 		transition: var(--transition-fast);
 	}
 	.module-tile:active {
 		cursor: grabbing;
+	}
+	.canvas.insert-dragging .module-tile {
+		opacity: 0.72;
 	}
 	.module-tile:nth-child(1) {
 		--tile-accent: var(--accent-blue);
@@ -1843,6 +1912,24 @@
 		border-radius: var(--radius-full);
 		background: currentColor;
 		opacity: 0.75;
+	}
+	.drag-ghost {
+		position: fixed;
+		left: 0;
+		top: 0;
+		z-index: 1000;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid color-mix(in srgb, var(--accent-violet) 52%, var(--border-default));
+		border-radius: var(--radius-full);
+		background: var(--surface-elevated);
+		color: var(--accent-violet);
+		box-shadow: var(--shadow-lg);
+		font-size: var(--text-xs);
+		font-weight: 900;
+		pointer-events: none;
 	}
 	.add-end-btn {
 		display: flex;
