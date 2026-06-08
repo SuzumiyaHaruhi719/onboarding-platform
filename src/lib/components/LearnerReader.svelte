@@ -153,6 +153,7 @@
 		padding: 0 var(--space-6);
 	}
 	.content {
+		min-width: 0;
 		padding: var(--space-12) var(--space-12) var(--space-16);
 		max-width: 820px;
 		width: 100%;
@@ -161,6 +162,7 @@
 		border-radius: var(--radius-2xl);
 		background: var(--surface-elevated);
 		box-shadow: var(--shadow-sm);
+		overflow-wrap: anywhere;
 	}
 	.eyebrow {
 		display: flex;
@@ -186,6 +188,7 @@
 		color: var(--text-primary);
 		margin: 0 0 var(--space-8);
 		letter-spacing: 0;
+		overflow-wrap: anywhere;
 	}
 	.end-spacer {
 		height: var(--space-16);

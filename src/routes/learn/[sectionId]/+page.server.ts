@@ -20,16 +20,16 @@ export const load: PageServerLoad = ({ params, locals, url }) => {
 	// `?view=learner` gives editors a true learner-rendered preview without changing
 	// their role cookie or weakening learner-only server gates below.
 	if (role === 'editor' && !previewAsLearner) {
-		return { role, section, editorQuizzes: getEditorQuizzes(id) };
+		return { viewRole: role, section, editorQuizzes: getEditorQuizzes(id) };
 	}
 
 	if (previewAsLearner) {
 		startSection(locals.uid, id);
-		return { role: 'learner', section, editorQuizzes: null };
+		return { viewRole: 'learner', section, editorQuizzes: null };
 	}
 
 	// Learners: server-authoritative gate — locked sections never reach the client.
 	if (!isUnlocked(locals.uid, id)) error(403, '本节尚未解锁 / Section locked');
 	startSection(locals.uid, id);
-	return { role, section, editorQuizzes: null };
+	return { viewRole: role, section, editorQuizzes: null };
 };

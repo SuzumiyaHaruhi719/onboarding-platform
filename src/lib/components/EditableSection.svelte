@@ -372,12 +372,19 @@
 		}
 	}
 
+	function isDocumentBlock(block: Block): boolean {
+		return ['richtext', 'heading', 'paragraph', 'list', 'quote', 'callout'].includes(block.type);
+	}
+
 	const documentMarkdown = $derived(
 		section.blocks
 			.filter((block) => !isExtractorNoiseBlock(block))
 			.map((block) => blockToMarkdown(block))
 			.filter((part) => part.trim())
 			.join('\n\n')
+	);
+	const documentEditorKey = $derived(
+		`${section.id}:${section.blocks.filter(isDocumentBlock).map((block) => block.id).join('|')}`
 	);
 
 	async function replaceDocumentContent(markdown: string): Promise<void> {
@@ -520,6 +527,9 @@
 			</span>
 		</div>
 		<div class="bar-right">
+			<a class="btn-sm ghost preview-link" href={`/learn/${section.id}?view=learner`}>
+				<Icon name="graduation-cap" size={15} /> 真实学生视图
+			</a>
 			<label class="btn-sm ghost upload" class:busy={ingestBusy}>
 				{#if ingestBusy}AI 转译中…{:else}<Icon name="sparkles" size={15} /> AI 转译文件{/if}
 				<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
@@ -573,7 +583,7 @@
 				{#if section.blocks.length === 0}<p class="muted">本节暂无内容。</p>{/if}
 			{:else}
 				<div class="word-shell">
-					{#key section.id}
+					{#key documentEditorKey}
 						<LazyRichTextEditor
 							initial={documentMarkdown}
 							onsave={replaceDocumentContent}
@@ -617,6 +627,7 @@
 				{#each section.blocks as block, i (block.id)}
 					<div
 						class="eb"
+						class:document-hidden={isDocumentBlock(block)}
 						class:dragover={overId === block.id}
 						class:dragging={dragId === block.id}
 						ondragover={(e) => { e.preventDefault(); overId = block.id; }}
@@ -797,7 +808,7 @@
 						{:else if pending.type === 'quiz'}
 							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
 						{:else}
-							<BlockForm presetType={pending.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+							<BlockForm presetType={pending.type} lockType onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
 						{/if}
 					</section>
 				{:else}
@@ -1077,7 +1088,6 @@
 	}
 	.word-shell ~ .empty,
 	.word-shell ~ .inserting,
-	.word-shell ~ .eb,
 	.word-shell ~ .add-end {
 		display: none;
 	}
@@ -1363,6 +1373,9 @@
 		background: var(--surface-elevated);
 		box-shadow: var(--shadow-sm);
 		transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+	}
+	.eb.document-hidden {
+		display: none;
 	}
 	.eb:hover {
 		border-color: var(--border-strong);

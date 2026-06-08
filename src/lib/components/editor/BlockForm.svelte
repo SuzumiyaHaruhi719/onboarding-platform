@@ -6,11 +6,13 @@
 	let {
 		initial,
 		presetType,
+		lockType = false,
 		onsave,
 		oncancel
 	}: {
 		initial?: Block;
 		presetType?: BlockInput['type'];
+		lockType?: boolean;
 		onsave: (block: BlockInput) => void;
 		oncancel: () => void;
 	} = $props();
@@ -87,24 +89,26 @@
 </script>
 
 <div class="form">
-	<div class="type-grid" role="listbox" aria-label="内容类型">
-		{#each TYPES as t (t.value)}
-			<button
-				type="button"
-				class="type-card"
-				class:on={type === t.value}
-				role="option"
-				aria-selected={type === t.value}
-				onclick={() => choose(t.value)}
-			>
-				<span class="type-icon"><Icon name={t.icon} size={16} /></span>
-				<span>
-					<strong>{t.label}</strong>
-					<small>{t.desc}</small>
-				</span>
-			</button>
-		{/each}
-	</div>
+	{#if !lockType}
+		<div class="type-grid" role="listbox" aria-label="内容类型">
+			{#each TYPES as t (t.value)}
+				<button
+					type="button"
+					class="type-card"
+					class:on={type === t.value}
+					role="option"
+					aria-selected={type === t.value}
+					onclick={() => choose(t.value)}
+				>
+					<span class="type-icon"><Icon name={t.icon} size={16} /></span>
+					<span>
+						<strong>{t.label}</strong>
+						<small>{t.desc}</small>
+					</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	<div class="fields">
 		{#if type === 'heading'}

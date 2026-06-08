@@ -6,7 +6,7 @@
 	let { data }: { data: PageData } = $props();
 </script>
 
-{#if data.role === 'editor'}
+{#if data.viewRole === 'editor'}
 	{#key data.section.id}
 		<EditableSection section={data.section} quizzes={data.editorQuizzes ?? []} modules={data.modules} />
 	{/key}
