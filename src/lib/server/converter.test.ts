@@ -34,6 +34,21 @@ goals.`);
 		]);
 	});
 
+	it('keeps obvious PDF/PPTX section titles as headings in fallback output', () => {
+		expect(textToBlocks('GLP VALUES\n\n"赢"的文化 Winning\n\nHave the passion to be the best.')).toEqual([
+			{ type: 'heading', level: 2, text: 'GLP VALUES' },
+			{ type: 'heading', level: 2, text: '"赢"的文化 Winning' },
+			{ type: 'paragraph', text: 'Have the passion to be the best.' }
+		]);
+	});
+
+	it('recognizes PPTX markdown titles and removes slide note noise', () => {
+		expect(mdToBlocks('Customer Data Discipline\n\nCore idea: protect data.\n\n> Note: 1')).toEqual([
+			{ type: 'heading', level: 2, text: 'Customer Data Discipline' },
+			{ type: 'paragraph', text: 'Core idea: protect data.' }
+		]);
+	});
+
 	it('removes spaces inserted between CJK characters', () => {
 		expect(blocksToMarkdown(textToBlocks('拥 有 激 情，追 求 卓 越'))).toBe('拥有激情，追求卓越');
 	});

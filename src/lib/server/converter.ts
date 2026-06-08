@@ -9,6 +9,7 @@ function isMetadataNoise(line: string): boolean {
 	if (/^-{3,}$/.test(compact)) return true;
 	if (/^---\s*(title|created|modified|language|islinearized)\b/i.test(compact)) return true;
 	if (/^(language\s*:.*islinearized\s*:|islinearized\s*:)/i.test(compact)) return true;
+	if (/^>?\s*note:\s*\d+\s*$/i.test(compact)) return true;
 	return METADATA_LINE.test(compact);
 }
 
@@ -74,6 +75,17 @@ function splitPlainParagraphs(text: string): string[] {
 	return paragraphs;
 }
 
+function isLikelyHeading(text: string): boolean {
+	const compact = text.trim();
+	if (compact.length < 3 || compact.length > 80) return false;
+	if (/[。！？；.!?;]$/.test(compact)) return false;
+	if (/^\d+[.)]\s+/.test(compact)) return false;
+	if (/^[A-Z0-9][A-Z0-9&\-/ ]{2,}$/.test(compact)) return true;
+	if (/\p{Script=Han}/u.test(compact)) return true;
+	const words = compact.split(/\s+/);
+	return words.length <= 5 && words.every((word) => /^[A-Z][A-Za-z0-9&:/-]*$/.test(word));
+}
+
 /**
  * Deterministic local fallback when the AI agent is unavailable. Parses a
  * useful subset of Markdown (headings, lists, quotes, paragraphs) into blocks.
@@ -109,6 +121,12 @@ export function mdToBlocks(md: string): BlockInput[] {
 			flushAll();
 			const text = normalizeText(heading[2]!);
 			if (text) blocks.push({ type: 'heading', level: heading[1]!.length <= 1 ? 2 : 3, text });
+			continue;
+		}
+		if (para.length === 0 && isLikelyHeading(line.trim())) {
+			flushList();
+			const text = normalizeText(line);
+			if (text) blocks.push({ type: 'heading', level: 2, text });
 			continue;
 		}
 		const quote = /^>\s?(.*)$/.exec(line);
@@ -179,7 +197,10 @@ export function blocksToMarkdown(blocks: BlockInput[]): string {
 
 /** Plain text → paragraph blocks split on blank lines. */
 export function textToBlocks(text: string): BlockInput[] {
-	return splitPlainParagraphs(text).map(
-		(t) => ({ type: 'paragraph', text: t.slice(0, 8000) }) as BlockInput
+	const paragraphs = splitPlainParagraphs(text);
+	return paragraphs.map((t) =>
+		paragraphs.length > 1 && isLikelyHeading(t)
+			? ({ type: 'heading', level: 2, text: t.slice(0, 300) } as BlockInput)
+			: ({ type: 'paragraph', text: t.slice(0, 8000) } as BlockInput)
 	);
 }

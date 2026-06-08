@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { blockInputSchema } from './schemas';
+import { validateTranslationQuality } from './translationQuality';
 import type { BlockInput } from '$lib/content/types';
 
 // $env/dynamic/private reads .env in dev (Vite does NOT populate process.env for
@@ -12,7 +13,7 @@ function numericEnv(value: string | undefined, fallback: number): number {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-const AGENT_TIMEOUT_MS = numericEnv(env.DASHSCOPE_TIMEOUT_MS, 30_000);
+const AGENT_TIMEOUT_MS = numericEnv(env.DASHSCOPE_TIMEOUT_MS, 60_000);
 
 /** The multimodal agent (qwen3.7-plus) is configured only when its key is set. */
 export function hasAgentKey(): boolean {
@@ -34,7 +35,10 @@ Authoring guidelines:
 - Write flowing, concise paragraphs in plain language — rephrase awkward or fragmented source text into smooth prose. Do NOT just paste extracted lines.
 - Turn enumerations into lists; turn key rules / warnings / tips into callouts (warning for must-not-do, info for tips, success for best practices).
 - Preserve the document's original language (Chinese source → Chinese output).
-- Stay faithful: keep all real facts, names, numbers, and rules; do NOT fabricate new policies or details.
+- Stay faithful: keep all real facts, names, numbers, deadlines, durations, acronyms, URLs, contacts, and rules; do NOT fabricate new policies or details.
+- Preserve dates, durations, IDs, and abbreviations verbatim. For example, if the source says "24h", the output must still contain "24h".
+- You may improve wording and order for readability, but you must not change the source's core ideas, obligations, permissions, or prohibitions.
+- Remove extraction artifacts such as PDF metadata, slide headers/footers, repeated page numbers, and broken line wrapping.
 - Do NOT output images, videos, or quizzes. Output at most 40 blocks. JSON only, no prose outside the JSON.`;
 
 interface ChatResponse {
@@ -66,6 +70,7 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 					{ role: 'system', content: SYSTEM_PROMPT },
 					{ role: 'user', content: text.slice(0, 60000) }
 				],
+				enable_thinking: false,
 				temperature: 0.2,
 				// Generous cap so the JSON output is never truncated (this is a reasoning
 				// model — reasoning + output must both fit).
@@ -99,6 +104,8 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 		const r = blockInputSchema.safeParse(candidate);
 		if (r.success) blocks.push(cleanBlock(r.data));
 	}
+	const issues = validateTranslationQuality(text, blocks);
+	if (issues.length) throw new Error('agent quality check failed: ' + issues.slice(0, 3).join('; '));
 	const tokens = typeof data.usage?.total_tokens === 'number' ? data.usage.total_tokens : 0;
 	return { blocks, tokens };
 }
