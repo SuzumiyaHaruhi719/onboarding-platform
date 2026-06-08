@@ -9,7 +9,7 @@ export function hasAgentKey(): boolean {
 	return !!process.env.DASHSCOPE_API_KEY;
 }
 
-const SYSTEM_PROMPT = `You convert raw document text into structured content blocks for a corporate onboarding reading website.
+const SYSTEM_PROMPT = `You are an onboarding content editor. Rewrite the raw source document into a polished, READABLE onboarding chapter — not a raw text dump. Reorganize, retitle, and rephrase for clarity and a welcoming onboarding tone, while staying faithful to the source's facts.
 
 Return ONLY a JSON object: {"blocks": Block[]} where each Block is exactly one of:
 {"type":"heading","level":2|3,"text":string}
@@ -18,19 +18,27 @@ Return ONLY a JSON object: {"blocks": Block[]} where each Block is exactly one o
 {"type":"quote","text":string,"cite"?:string}
 {"type":"callout","variant":"info"|"success"|"warning"|"error","title":string,"body":string}
 
-Rules:
-- Preserve the document's original language (Chinese stays Chinese).
-- Organize content with clear H2/H3 headings and concise paragraphs.
-- Use lists where the source enumerates items; use callouts for warnings/tips.
-- Do NOT invent facts. Do NOT output images, videos, or quizzes.
-- Output at most 40 blocks. Output JSON only, no prose.`;
+Authoring guidelines:
+- Open with a short intro paragraph that frames the chapter for a new hire.
+- Group related content under clear, descriptive H2 sections (and H3 sub-sections where helpful); add headings even if the source lacks them.
+- Write flowing, concise paragraphs in plain language — rephrase awkward or fragmented source text into smooth prose. Do NOT just paste extracted lines.
+- Turn enumerations into lists; turn key rules / warnings / tips into callouts (warning for must-not-do, info for tips, success for best practices).
+- Preserve the document's original language (Chinese source → Chinese output).
+- Stay faithful: keep all real facts, names, numbers, and rules; do NOT fabricate new policies or details.
+- Do NOT output images, videos, or quizzes. Output at most 40 blocks. JSON only, no prose outside the JSON.`;
 
 interface ChatResponse {
 	choices?: { message?: { content?: string } }[];
+	usage?: { total_tokens?: number };
+}
+
+export interface AgentResult {
+	blocks: BlockInput[];
+	tokens: number;
 }
 
 /** Transform document text into validated blocks via qwen3.7-plus. */
-export async function convertWithAgent(text: string): Promise<BlockInput[]> {
+export async function convertWithAgent(text: string): Promise<AgentResult> {
 	const key = process.env.DASHSCOPE_API_KEY;
 	if (!key) throw new Error('DASHSCOPE_API_KEY not set');
 
@@ -63,5 +71,6 @@ export async function convertWithAgent(text: string): Promise<BlockInput[]> {
 		const r = blockInputSchema.safeParse(candidate);
 		if (r.success) blocks.push(r.data);
 	}
-	return blocks;
+	const tokens = typeof data.usage?.total_tokens === 'number' ? data.usage.total_tokens : 0;
+	return { blocks, tokens };
 }

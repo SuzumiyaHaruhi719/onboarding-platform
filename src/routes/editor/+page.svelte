@@ -10,13 +10,18 @@
 
 	async function post(url: string, body: unknown, method = 'POST'): Promise<void> {
 		busy = true;
-		await fetch(url, {
-			method,
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body)
-		}).catch(() => {});
-		await invalidateAll();
-		busy = false;
+		try {
+			await fetch(url, {
+				method,
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			await invalidateAll();
+		} catch {
+			// ignore; busy is always cleared in finally
+		} finally {
+			busy = false;
+		}
 	}
 
 	async function addModule(): Promise<void> {
@@ -77,9 +82,9 @@
 			<ul class="sections">
 				{#each m.sections as s (s.id)}
 					<li>
-						<a class="sec-link" href={`/editor/sections/${s.id}`}>
+						<a class="sec-link" href={`/learn/${s.id}`}>
 							<span class="sec-title">{s.title}</span>
-							<span class="sec-meta">最短阅读 {Math.round(s.minDwellMs / 1000)}s</span>
+							<span class="sec-meta">点击进入学员视图内联编辑 · 最短阅读 {Math.round(s.minDwellMs / 1000)}s</span>
 						</a>
 						<button class="btn-ghost danger" onclick={() => delSection(s.id)} disabled={busy}>删除</button>
 					</li>

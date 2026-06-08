@@ -1,7 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import { eq, asc, sql } from 'drizzle-orm';
 import { db, schema } from '$lib/db';
-import type { BlockInput, QuizInput } from '$lib/content/types';
+import { parseOptions, parseAnswer } from '$lib/db/serde';
+import type { BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
+
+/** Quizzes WITH correct answers — editor-only read model. */
+export function getEditorQuizzes(sectionId: string): EditorQuiz[] {
+	return db
+		.select()
+		.from(schema.quizzes)
+		.where(eq(schema.quizzes.sectionId, sectionId))
+		.orderBy(asc(schema.quizzes.order), asc(schema.quizzes.id))
+		.all()
+		.map((q) => ({
+			id: q.id,
+			order: q.order,
+			type: q.type,
+			question: q.question,
+			options: parseOptions(q.options),
+			answer: parseAnswer(q.answer)
+		}));
+}
 
 function nextSectionOrder(moduleId: string): number {
 	const r = db
