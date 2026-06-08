@@ -25,6 +25,7 @@
 	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	type Pos = 'start' | 'end' | { afterId: string };
+	type PendingInsert = { at: Pos; type: BlockInput['type']; source: 'canvas' | 'side' };
 
 	let preview = $state(false);
 	let busy = $state(false);
@@ -37,7 +38,7 @@
 
 	let editingId = $state<string | null>(null);
 	let menuAt = $state<string | null>(null); // 'end' | 'start' | blockId — which "+" opened the menu
-	let pending = $state<{ at: Pos; type: BlockInput['type'] } | null>(null);
+	let pending = $state<PendingInsert | null>(null);
 	let dragId = $state<string | null>(null);
 	let overId = $state<string | null>(null);
 	let insertTarget = $state<string>('end');
@@ -113,6 +114,21 @@
 	function posFrom(at: string): Pos {
 		return at === 'end' || at === 'start' ? at : { afterId: at };
 	}
+	function keyFromPos(pos: Pos): string {
+		return typeof pos === 'string' ? pos : pos.afterId;
+	}
+	function insertionLabel(key: string): string {
+		if (key === 'start') return tx('章节开头', 'Section start');
+		if (key === 'end') return tx('章节末尾', 'Section end');
+		const index = section.blocks.findIndex((block) => block.id === key);
+		const block = section.blocks[index];
+		return index >= 0 && block
+			? `${tx(`第 ${index + 1} 块之后`, `After block ${index + 1}`)} · ${typeLabel(block.type)}`
+			: tx('所选位置', 'Selected position');
+	}
+	const currentInsertionLabel = $derived(insertionLabel(insertTarget));
+	const resolvedPendingPosition = $derived(pending?.source === 'side' ? insertPosition : (pending?.at ?? 'end'));
+	const resolvedPendingLabel = $derived(pending?.source === 'side' ? currentInsertionLabel : insertionLabel(keyFromPos(pending?.at ?? 'end')));
 
 	async function createBlock(input: BlockInput, at: Pos): Promise<void> {
 		busy = true;
@@ -191,11 +207,11 @@
 
 	function pickType(at: string, type: BlockInput['type']): void {
 		menuAt = null;
-		pending = { at: posFrom(at), type };
+		pending = { at: posFrom(at), type, source: 'canvas' };
 	}
 	function pickSideType(type: BlockInput['type']): void {
 		menuAt = null;
-		pending = { at: insertPosition, type };
+		pending = { at: insertPosition, type, source: 'side' };
 	}
 	function clearTransientEditingState(): void {
 		pending = null;
@@ -313,7 +329,7 @@
 		const r = await fetch('/api/editor/upload', { method: 'POST', body: fd }).then((x) => x.json()).catch(() => null);
 		input.value = '';
 		uploading = false;
-		if (r?.ok) await createBlock({ type: 'video', src: r.url, durationSec: Math.round(dur) }, 'end');
+		if (r?.ok) await createBlock({ type: 'video', src: r.url, durationSec: Math.round(dur) }, insertPosition);
 		else showToast(`${tx('上传失败', 'Upload failed')}:${r?.error ?? tx('请检查视频文件后重试', 'Check the video file and try again')}`);
 	}
 
@@ -481,7 +497,7 @@
 				stopTimer();
 				ingestBusy = false;
 				previewBlocks = Array.isArray(s.blocks) ? s.blocks : [];
-				insertPos = 'end';
+				insertPos = insertTarget;
 				showPreview = true;
 				return;
 			}
@@ -631,7 +647,7 @@
 					</div>
 				{/if}
 
-				{#if pending && (pending.at === 'start' || section.blocks.length === 0)}
+				{#if pending?.source === 'canvas' && (pending.at === 'start' || section.blocks.length === 0)}
 					<div class="inserting">
 						{#if pending.type === 'richtext'}
 							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
@@ -714,7 +730,7 @@
 							<button class="block-action danger" title={tx('删除', 'Delete')} aria-label={tx('删除内容块', 'Delete content block')} onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /> {tx('删除', 'Delete')}</button>
 						</div>
 
-						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
+						{#if pending?.source === 'canvas' && typeof pending.at === 'object' && pending.at.afterId === block.id}
 							<div class="inserting after">
 								{#if pending.type === 'richtext'}
 									<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
@@ -734,7 +750,7 @@
 						{#if menuAt === 'end'}
 							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
 						{/if}
-						{#if pending && pending.at === 'end'}
+						{#if pending?.source === 'canvas' && pending.at === 'end'}
 							<div class="inserting">
 								{#if pending.type === 'richtext'}
 									<LazyRichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
@@ -800,6 +816,23 @@
 							<option value="end">{tx('章节末尾', 'Section end')}</option>
 						</select>
 					</label>
+					<div class="position-list" role="listbox" aria-label={tx('快速选择插入位置', 'Quick insertion point picker')}>
+						<button type="button" class:active={insertTarget === 'start'} onclick={() => (insertTarget = 'start')}>
+							<span class="pos-mark">0</span>
+							<span>{tx('章节开头', 'Section start')}</span>
+						</button>
+						{#each section.blocks as b, i (b.id)}
+							<button type="button" class:active={insertTarget === b.id} onclick={() => (insertTarget = b.id)}>
+								<span class="pos-mark">{i + 1}</span>
+								<span>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)}</span>
+								<small>{typeLabel(b.type)}</small>
+							</button>
+						{/each}
+						<button type="button" class:active={insertTarget === 'end'} onclick={() => (insertTarget = 'end')}>
+							<span class="pos-mark">+</span>
+							<span>{tx('章节末尾', 'Section end')}</span>
+						</button>
+					</div>
 					<div class="module-grid">
 						{#each SIDE_TYPES as t (t.type)}
 							<button class="module-tile" class:active={pending?.type === t.type} onclick={() => pickSideType(t.type)}>
@@ -813,21 +846,21 @@
 					</div>
 				</section>
 
-				{#if pending}
+				{#if pending?.source === 'side'}
 					<section class="panel-card side-form">
 						<div class="panel-head">
 							<span class="panel-index">03</span>
 							<div>
 								<h3>{tx(`${typeLabel(pending.type)}设置`, `${typeLabel(pending.type)} settings`)}</h3>
-								<p>{tx('保存后插入到所选位置', 'Saved content will be inserted at the selected position')}</p>
+								<p>{tx('将插入到：', 'Will insert at: ')}{resolvedPendingLabel}</p>
 							</div>
 						</div>
 						{#if pending.type === 'richtext'}
-							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, resolvedPendingPosition); }} oncancel={() => (pending = null)} />
 						{:else if pending.type === 'quiz'}
-							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
+							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, resolvedPendingPosition); }} oncancel={() => (pending = null)} />
 						{:else}
-							<BlockForm presetType={pending.type} lockType onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+							<BlockForm presetType={pending.type} lockType onsave={(b) => { if (pending) createBlock(b, resolvedPendingPosition); }} oncancel={() => (pending = null)} />
 						{/if}
 					</section>
 				{:else}
@@ -1286,6 +1319,64 @@
 	.icon-action:hover:not(:disabled) {
 		transform: translateY(-1px);
 		box-shadow: var(--shadow-sm);
+	}
+	.position-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		max-height: 220px;
+		overflow: auto;
+		margin-top: var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-lg);
+		background:
+			linear-gradient(180deg, var(--surface-container), transparent),
+			var(--surface-page);
+	}
+	.position-list button {
+		width: 100%;
+		min-height: 40px;
+		display: grid;
+		grid-template-columns: 30px minmax(0, 1fr) auto;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid transparent;
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--text-secondary);
+		text-align: left;
+		cursor: pointer;
+		transition: var(--transition-fast);
+	}
+	.position-list button:hover,
+	.position-list button.active {
+		border-color: var(--accent-violet);
+		background: var(--accent-violet-bg);
+		color: var(--text-primary);
+	}
+	.position-list button.active {
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 26%, transparent);
+	}
+	.pos-mark {
+		width: 28px;
+		height: 28px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-md);
+		background: var(--surface-elevated);
+		border: 1px solid var(--border-default);
+		color: var(--accent-violet);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		font-weight: 800;
+	}
+	.position-list small {
+		color: var(--text-tertiary);
+		font-size: var(--text-xs);
+		white-space: nowrap;
 	}
 	.module-grid {
 		display: grid;
