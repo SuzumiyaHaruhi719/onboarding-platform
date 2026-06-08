@@ -1,0 +1,40 @@
+@import './lib/design/tokens.css';
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: var(--surface-page);
+	color: var(--text-primary);
+	font-family: var(--font-sans);
+	font-size: var(--text-base);
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+	transition:
+		background var(--transition-base),
+		color var(--transition-base);
+}
+
+a {
+	color: var(--text-brand);
+	text-decoration: none;
+}
+
+button {
+	font-family: inherit;
+}
+
+:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 3px var(--brand-200, rgba(0, 170, 79, 0.25));
+	border-radius: var(--radius-sm);
+}
