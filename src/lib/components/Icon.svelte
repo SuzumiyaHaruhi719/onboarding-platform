@@ -42,7 +42,9 @@
 		'grip-vertical':
 			'<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>',
 		'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-		'redo-2': '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'
+		'redo-2': '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+		layers: '<path d="m12.83 2.18 7.33 3.66a1 1 0 0 1 0 1.79l-7.33 3.67a2 2 0 0 1-1.66 0L3.84 7.63a1 1 0 0 1 0-1.79l7.33-3.66a2 2 0 0 1 1.66 0Z"/><path d="m20.16 12.37-7.33 3.67a2 2 0 0 1-1.66 0l-7.33-3.67"/><path d="m20.16 17.37-7.33 3.67a2 2 0 0 1-1.66 0l-7.33-3.67"/>',
+		'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>'
 	};
 
 	export type IconName = keyof typeof ICONS;

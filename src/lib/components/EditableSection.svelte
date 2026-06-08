@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import { fade, scale, fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import BlockForm from '$lib/components/editor/BlockForm.svelte';
 	import BlockMenu from '$lib/components/editor/BlockMenu.svelte';
@@ -10,8 +10,13 @@
 	import QuizForm from '$lib/components/editor/QuizForm.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { SectionView, Block, BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
+	import type { ModuleWithSections } from '$lib/db/queries';
 
-	let { section, quizzes }: { section: SectionView; quizzes: EditorQuiz[] } = $props();
+	let {
+		section,
+		quizzes,
+		modules = []
+	}: { section: SectionView; quizzes: EditorQuiz[]; modules?: ModuleWithSections[] } = $props();
 
 	const JSON_HEADERS = { 'content-type': 'application/json' };
 	const noop = (): void => {};
@@ -32,6 +37,10 @@
 	let pending = $state<{ at: Pos; type: BlockInput['type'] } | null>(null);
 	let dragId = $state<string | null>(null);
 	let overId = $state<string | null>(null);
+	let insertTarget = $state<string>('end');
+	let newModuleTitle = $state('');
+	let newSectionTitle = $state('');
+	let structureBusy = $state(false);
 
 	let toast = $state<{ msg: string; undo?: () => void; actionLabel?: string } | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,6 +63,16 @@
 		heading: '标题', paragraph: '正文', list: '列表', quote: '引用',
 		callout: '提示', image: '图片', video: '视频', quiz: '题目'
 	};
+	const SIDE_TYPES: { type: BlockInput['type']; icon: string; label: string; desc: string }[] = [
+		{ type: 'richtext', icon: 'file-text', label: '图文正文', desc: '插入一段独立富文本内容' },
+		{ type: 'callout', icon: 'info', label: '重点提示', desc: '安全提醒、结论或注意事项' },
+		{ type: 'image', icon: 'image', label: '图片说明', desc: '图片、替代文本和图注' },
+		{ type: 'video', icon: 'video', label: '视频片段', desc: '上传视频或粘贴视频地址' },
+		{ type: 'quiz', icon: 'circle-check', label: '检查题', desc: '学生通过后继续学习' }
+	];
+	const currentModule = $derived(modules.find((m) => m.sections.some((s) => s.id === section.id)) ?? modules[0]);
+	const currentModuleTitle = $derived(currentModule?.title ?? '当前模块');
+	const insertPosition = $derived(posFrom(insertTarget));
 
 	async function refresh(): Promise<void> {
 		await invalidateAll();
@@ -163,6 +182,64 @@
 	function pickType(at: string, type: BlockInput['type']): void {
 		menuAt = null;
 		pending = { at: posFrom(at), type };
+	}
+	function pickSideType(type: BlockInput['type']): void {
+		menuAt = null;
+		pending = { at: insertPosition, type };
+	}
+	function clearTransientEditingState(): void {
+		pending = null;
+		menuAt = null;
+		editingId = null;
+		insertTarget = 'end';
+	}
+
+	async function createSectionInCurrentModule(): Promise<void> {
+		clearTransientEditingState();
+		const moduleId = currentModule?.id;
+		if (!moduleId) {
+			showToast('请先创建模块');
+			return;
+		}
+		const text = newSectionTitle.trim();
+		if (!text) {
+			showToast('请输入章节名称');
+			return;
+		}
+		structureBusy = true;
+		try {
+			const created = await call('/api/editor/section', { moduleId, title: text });
+			if (created?.ok && created.id) {
+				newSectionTitle = '';
+				await goto(`/learn/${created.id}`, { invalidateAll: true });
+			}
+		} finally {
+			structureBusy = false;
+		}
+	}
+
+	async function createModuleWithFirstSection(): Promise<void> {
+		clearTransientEditingState();
+		const text = newModuleTitle.trim();
+		if (!text) {
+			showToast('请输入模块名称');
+			return;
+		}
+		structureBusy = true;
+		try {
+			const createdModule = await call('/api/editor/module', { title: text });
+			if (!createdModule?.ok || !createdModule.id) return;
+			const createdSection = await call('/api/editor/section', { moduleId: createdModule.id, title: '开始学习' });
+			newModuleTitle = '';
+			if (createdSection?.ok && createdSection.id) {
+				await goto(`/learn/${createdSection.id}`, { invalidateAll: true });
+			} else {
+				await refresh();
+				showToast('模块已创建，请在左侧继续添加章节');
+			}
+		} finally {
+			structureBusy = false;
+		}
 	}
 
 	// ---- Quizzes (authored inline as their own blocks) ----
@@ -454,41 +531,6 @@
 		</div>
 	</div>
 
-	<section class="coach" aria-label="编辑工作台">
-		<div class="coach-card primary-card">
-			<span class="coach-step">01</span>
-			<div>
-				<strong>内容搭建</strong>
-				<span>{section.blocks.length} 个内容块</span>
-			</div>
-			<div class="menu-anchor">
-				<button class="coach-action" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}>
-					<Icon name="plus" size={15} /> 添加内容
-				</button>
-				{#if menuAt === 'start'}
-					<BlockMenu onpick={(t) => pickType('start', t)} onclose={() => (menuAt = null)} />
-				{/if}
-			</div>
-		</div>
-		<label class="coach-card upload-card" class:busy={ingestBusy}>
-			<span class="coach-step">02</span>
-			<div>
-				<strong>{ingestBusy ? 'AI 转译中' : 'AI 转译'}</strong>
-				<span>PDF / PPTX / Word 转成可编辑段落</span>
-			</div>
-			<span class="coach-action ghost"><Icon name="sparkles" size={15} /> 选择文件</span>
-			<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
-		</label>
-		<button class="coach-card preview-card" onclick={() => (preview = !preview)}>
-			<span class="coach-step">03</span>
-			<div>
-				<strong>{preview ? '正在预览' : '学生预览'}</strong>
-				<span>{hasBlocks ? '检查阅读路径和题目' : '添加内容后可预览'}</span>
-			</div>
-			<span class="coach-action ghost"><Icon name="graduation-cap" size={15} /> {preview ? '回到编辑' : '预览'}</span>
-		</button>
-	</section>
-
 	{#if ingestBusy || ingestStage === 'error'}
 		<div class="ingest" class:err={ingestStage === 'error'}>
 			<div class="ingest-top">
@@ -518,7 +560,7 @@
 		</div>
 	{/if}
 
-	<div class="canvas">
+	<div class="canvas" class:editing={!preview}>
 		<article class="content">
 			<p class="eyebrow"><span class="dot"></span>{section.title || '未命名章节'}</p>
 
@@ -531,11 +573,13 @@
 				{#if section.blocks.length === 0}<p class="muted">本节暂无内容。</p>{/if}
 			{:else}
 				<div class="word-shell">
-					<LazyRichTextEditor
-						initial={documentMarkdown}
-						onsave={replaceDocumentContent}
-						oncancel={() => showToast('继续编辑中，未做更改')}
-					/>
+					{#key section.id}
+						<LazyRichTextEditor
+							initial={documentMarkdown}
+							onsave={replaceDocumentContent}
+							oncancel={() => showToast('继续编辑中，未做更改')}
+						/>
+					{/key}
 				</div>
 
 				{#if section.blocks.length === 0 && !pending}
@@ -675,6 +719,108 @@
 				{/if}
 			{/if}
 		</article>
+
+		{#if !preview}
+			<aside class="sidepanel" aria-label="创建与插入">
+				<section class="panel-card hero-panel">
+					<div class="panel-kicker"><Icon name="panel-right" size={15} /> 编辑工作台</div>
+					<h2>创建与插入</h2>
+					<p>正文像文档一样编辑；章节、模块和结构化内容都从这里添加。</p>
+				</section>
+
+				<section class="panel-card">
+					<div class="panel-head">
+						<span class="panel-index">01</span>
+						<div>
+							<h3>课程结构</h3>
+							<p>当前模块：{currentModuleTitle}</p>
+						</div>
+					</div>
+					<label class="field">
+						<span>新章节</span>
+						<div class="inline-create">
+							<input bind:value={newSectionTitle} placeholder="例如：安全合规测验" onkeydown={(e) => { if (e.key === 'Enter') createSectionInCurrentModule(); }} />
+							<button class="icon-action primary" aria-label="创建新章节" title="创建新章节" onclick={createSectionInCurrentModule} disabled={structureBusy}><Icon name="plus" size={16} /></button>
+						</div>
+					</label>
+					<label class="field">
+						<span>新模块</span>
+						<div class="inline-create">
+							<input bind:value={newModuleTitle} placeholder="例如：XJMK" onkeydown={(e) => { if (e.key === 'Enter') createModuleWithFirstSection(); }} />
+							<button class="icon-action" aria-label="创建新模块" title="创建新模块" onclick={createModuleWithFirstSection} disabled={structureBusy}><Icon name="layers" size={16} /></button>
+						</div>
+					</label>
+				</section>
+
+				<section class="panel-card">
+					<div class="panel-head">
+						<span class="panel-index">02</span>
+						<div>
+							<h3>插入模块</h3>
+							<p>{section.blocks.length} 个内容块，可选择插入位置</p>
+						</div>
+					</div>
+					<label class="field">
+						<span>插入位置</span>
+						<select bind:value={insertTarget}>
+							<option value="start">章节开头</option>
+							{#each section.blocks as b, i (b.id)}
+								<option value={b.id}>第 {i + 1} 块之后 · {TYPE_LABEL[b.type]}</option>
+							{/each}
+							<option value="end">章节末尾</option>
+						</select>
+					</label>
+					<div class="module-grid">
+						{#each SIDE_TYPES as t (t.type)}
+							<button class="module-tile" class:active={pending?.type === t.type} onclick={() => pickSideType(t.type)}>
+								<span class="tile-icon"><Icon name={t.icon} size={18} /></span>
+								<span>
+									<strong>{t.label}</strong>
+									<small>{t.desc}</small>
+								</span>
+							</button>
+						{/each}
+					</div>
+				</section>
+
+				{#if pending}
+					<section class="panel-card side-form">
+						<div class="panel-head">
+							<span class="panel-index">03</span>
+							<div>
+								<h3>{TYPE_LABEL[pending.type]}设置</h3>
+								<p>保存后插入到所选位置</p>
+							</div>
+						</div>
+						{#if pending.type === 'richtext'}
+							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+						{:else if pending.type === 'quiz'}
+							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
+						{:else}
+							<BlockForm presetType={pending.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+						{/if}
+					</section>
+				{:else}
+					<section class="panel-card quick-panel">
+						<div class="panel-head">
+							<span class="panel-index">03</span>
+							<div>
+								<h3>导入素材</h3>
+								<p>AI 转译或视频上传后会进入当前章节</p>
+							</div>
+						</div>
+						<label class="wide-action" class:busy={ingestBusy}>
+							<Icon name="sparkles" size={16} /> {ingestBusy ? 'AI 转译中…' : 'AI 转译 PDF / PPTX / Word'}
+							<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
+						</label>
+						<label class="wide-action" class:busy={uploading}>
+							<Icon name="video" size={16} /> {uploading ? '上传中…' : '上传视频'}
+							<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
+						</label>
+					</section>
+				{/if}
+			</aside>
+		{/if}
 	</div>
 
 	{#if toast}
@@ -745,100 +891,6 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-	}
-	.coach {
-		display: grid;
-		grid-template-columns: minmax(260px, 1.1fr) minmax(260px, 1fr) minmax(220px, 0.9fr);
-		gap: var(--space-3);
-		padding: var(--space-3) var(--space-6);
-		background: var(--surface-page);
-		border-bottom: 1px solid var(--border-subtle);
-	}
-	.coach-card {
-		min-width: 0;
-		display: grid;
-		grid-template-columns: 42px minmax(0, 1fr) auto;
-		align-items: center;
-		gap: var(--space-3);
-		padding: var(--space-3);
-		border: 1px solid var(--border-default);
-		border-radius: var(--radius-xl);
-		background: var(--surface-elevated);
-		box-shadow: var(--shadow-sm);
-		color: var(--text-primary);
-		text-align: left;
-		text-decoration: none;
-		transition: var(--transition-base);
-	}
-	button.coach-card,
-	label.coach-card {
-		font: inherit;
-		cursor: pointer;
-	}
-	.coach-card:hover {
-		border-color: var(--border-strong);
-		background: var(--surface-container);
-		transform: translateY(-1px);
-		box-shadow: var(--shadow-md);
-	}
-	.coach-card.busy {
-		cursor: progress;
-		opacity: 0.8;
-	}
-	.coach-step {
-		width: 38px;
-		height: 38px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-lg);
-		background: var(--surface-subtle);
-		color: var(--text-tertiary);
-		font-family: var(--font-mono);
-		font-size: var(--text-xs);
-		font-weight: 800;
-	}
-	.primary-card .coach-step {
-		background: var(--brand-50);
-		border: 1px solid var(--brand-200);
-		color: var(--text-brand);
-	}
-	.coach-card strong,
-	.coach-card span {
-		display: block;
-	}
-	.coach-card strong {
-		font-size: var(--text-sm);
-		color: var(--text-primary);
-	}
-	.coach-card div > span {
-		margin-top: var(--space-1);
-		font-size: var(--text-xs);
-		color: var(--text-tertiary);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.coach-action {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-1);
-		min-height: 36px;
-		padding: var(--space-2) var(--space-3);
-		border: none;
-		border-radius: var(--radius-lg);
-		background: var(--brand-500);
-		color: var(--text-inverse);
-		font-size: var(--text-sm);
-		font-weight: 800;
-		white-space: nowrap;
-		cursor: pointer;
-	}
-	.coach-action.ghost {
-		border: 1px solid var(--border-default);
-		background: var(--surface-elevated);
-		color: var(--text-secondary);
 	}
 	.mode-pill {
 		display: inline-flex;
@@ -983,11 +1035,22 @@
 		flex: 1;
 		overflow-y: auto;
 	}
+	.canvas.editing {
+		display: grid;
+		grid-template-columns: minmax(620px, 1fr) 360px;
+		align-items: start;
+		gap: var(--space-6);
+		padding: var(--space-8) var(--space-6) var(--space-24);
+	}
 	.content {
 		max-width: 1040px;
 		width: 100%;
 		margin: 0 auto;
 		padding: var(--space-10) var(--space-8) var(--space-24);
+	}
+	.canvas.editing .content {
+		max-width: none;
+		padding: 0;
 	}
 	.eyebrow {
 		display: flex;
@@ -1017,6 +1080,235 @@
 	.word-shell ~ .eb,
 	.word-shell ~ .add-end {
 		display: none;
+	}
+	.sidepanel {
+		position: sticky;
+		top: 132px;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		max-height: calc(100vh - 156px);
+		overflow-y: auto;
+		padding-right: 2px;
+	}
+	.panel-card {
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-xl);
+		background: var(--surface-elevated);
+		box-shadow: var(--shadow-sm);
+		padding: var(--space-4);
+	}
+	.hero-panel {
+		background: linear-gradient(135deg, var(--brand-50), var(--surface-elevated) 54%);
+		border-color: var(--brand-200);
+	}
+	.panel-kicker {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		color: var(--text-brand);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	.panel-card h2,
+	.panel-card h3,
+	.panel-card p {
+		margin: 0;
+	}
+	.panel-card h2 {
+		margin-top: var(--space-2);
+		font-size: var(--text-2xl);
+		color: var(--text-primary);
+		letter-spacing: 0;
+	}
+	.panel-card h3 {
+		font-size: var(--text-base);
+		color: var(--text-primary);
+	}
+	.panel-card p {
+		margin-top: var(--space-1);
+		color: var(--text-tertiary);
+		font-size: var(--text-xs);
+		line-height: 1.5;
+	}
+	.panel-head {
+		display: grid;
+		grid-template-columns: 38px minmax(0, 1fr);
+		align-items: center;
+		gap: var(--space-3);
+		margin-bottom: var(--space-3);
+	}
+	.panel-index {
+		width: 38px;
+		height: 38px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-lg);
+		background: var(--brand-50);
+		border: 1px solid var(--brand-200);
+		color: var(--text-brand);
+		font-family: var(--font-mono);
+		font-weight: 900;
+	}
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin-top: var(--space-3);
+	}
+	.field > span {
+		font-size: var(--text-xs);
+		color: var(--text-tertiary);
+		font-weight: 700;
+	}
+	.field input,
+	.field select {
+		width: 100%;
+		min-height: 42px;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		background: var(--surface-page);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--text-sm);
+		padding: var(--space-2) var(--space-3);
+	}
+	.field input:focus,
+	.field select:focus {
+		outline: none;
+		border-color: var(--brand-500);
+		box-shadow: 0 0 0 3px var(--brand-200);
+	}
+	.inline-create {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 44px;
+		gap: var(--space-2);
+	}
+	.icon-action {
+		width: 44px;
+		min-height: 42px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		background: var(--surface-elevated);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: var(--transition-fast);
+	}
+	.icon-action.primary {
+		border-color: var(--brand-500);
+		background: var(--brand-500);
+		color: var(--text-inverse);
+	}
+	.icon-action:hover:not(:disabled) {
+		transform: translateY(-1px);
+		box-shadow: var(--shadow-sm);
+	}
+	.module-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
+	}
+	.module-tile {
+		display: grid;
+		grid-template-columns: 40px minmax(0, 1fr);
+		align-items: center;
+		gap: var(--space-3);
+		width: 100%;
+		min-height: 66px;
+		padding: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-lg);
+		background: var(--surface-container);
+		color: var(--text-primary);
+		text-align: left;
+		cursor: pointer;
+		transition: var(--transition-fast);
+	}
+	.module-tile:hover,
+	.module-tile.active {
+		border-color: var(--brand-500);
+		background: var(--brand-50);
+	}
+	.tile-icon {
+		width: 40px;
+		height: 40px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-lg);
+		background: var(--surface-elevated);
+		border: 1px solid var(--border-default);
+		color: var(--text-brand);
+	}
+	.module-tile strong,
+	.module-tile small {
+		display: block;
+	}
+	.module-tile strong {
+		font-size: var(--text-sm);
+	}
+	.module-tile small {
+		margin-top: 2px;
+		color: var(--text-tertiary);
+		font-size: var(--text-xs);
+		line-height: 1.35;
+	}
+	.side-form {
+		border-color: var(--brand-200);
+	}
+	.side-form :global(.rte) {
+		box-shadow: none;
+	}
+	.side-form :global(.ribbon) {
+		position: static;
+		padding: var(--space-2);
+	}
+	.side-form :global(.group-label),
+	.side-form :global(.statusbar) {
+		display: none;
+	}
+	.side-form :global(.surface-shell) {
+		padding: var(--space-2);
+	}
+	.side-form :global(.surface) {
+		min-height: 220px;
+		max-height: 360px;
+		padding: var(--space-4);
+	}
+	.side-form :global(.ProseMirror) {
+		min-height: 180px;
+	}
+	.wide-action {
+		min-height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		background: var(--surface-container);
+		color: var(--text-secondary);
+		font-weight: 800;
+		font-size: var(--text-sm);
+		cursor: pointer;
+	}
+	.wide-action:hover {
+		border-color: var(--brand-500);
+		color: var(--text-brand);
+		background: var(--brand-50);
+	}
+	.wide-action.busy {
+		opacity: 0.65;
+		cursor: progress;
 	}
 
 	.empty {
@@ -1456,6 +1748,12 @@
 		.canvas {
 			overflow: visible;
 		}
+		.canvas.editing {
+			display: flex;
+			flex-direction: column;
+			padding: var(--space-4);
+			gap: var(--space-4);
+		}
 		.bar {
 			align-items: stretch;
 			padding: var(--space-3) var(--space-4);
@@ -1465,28 +1763,29 @@
 			width: 100%;
 			flex-wrap: wrap;
 		}
-		.coach {
-			grid-template-columns: 1fr;
-			padding: var(--space-3) var(--space-4);
-		}
-		.coach-card {
-			grid-template-columns: 38px minmax(0, 1fr);
-		}
-		.coach-card > .menu-anchor {
-			grid-column: 1 / -1;
-			width: 100%;
-			display: block;
-		}
-		.coach-action {
-			grid-column: 1 / -1;
-			width: 100%;
-		}
 		.title-input {
 			flex: 1 1 100%;
 			min-width: 0;
 		}
 		.content {
 			padding: var(--space-6) var(--space-4) var(--space-16);
+		}
+		.canvas.editing .content {
+			padding: 0;
+			order: 2;
+		}
+		.sidepanel {
+			position: static;
+			order: 1;
+			max-height: none;
+			overflow: visible;
+			padding-right: 0;
+		}
+		.panel-card {
+			padding: var(--space-3);
+		}
+		.module-grid {
+			grid-template-columns: 1fr;
 		}
 		.eb {
 			grid-template-columns: 1fr;

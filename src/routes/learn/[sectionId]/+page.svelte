@@ -7,7 +7,9 @@
 </script>
 
 {#if data.role === 'editor'}
-	<EditableSection section={data.section} quizzes={data.editorQuizzes ?? []} />
+	{#key data.section.id}
+		<EditableSection section={data.section} quizzes={data.editorQuizzes ?? []} modules={data.modules} />
+	{/key}
 {:else}
 	<LearnerReader section={data.section} />
 {/if}
