@@ -11,7 +11,6 @@
 	let { section }: { section: SectionView } = $props();
 	const i18n = useI18n();
 
-	let scrollEl = $state<HTMLElement | undefined>(undefined);
 	let complete = $state(false);
 	let reasons = $state<string[]>(['scroll']);
 	let hb: HeartbeatController | null = null;
@@ -53,14 +52,12 @@
 	}
 
 	$effect(() => {
-		const el = scrollEl;
 		const sectionId = section.id;
-		if (!el) return;
 
 		complete = false;
 		reasons = ['scroll'];
 
-		hb = startHeartbeat({ sectionId, scrollEl: el });
+		hb = startHeartbeat({ sectionId });
 		void refresh();
 		const poll = setInterval(refresh, 4500);
 
@@ -84,7 +81,7 @@
 </script>
 
 <div class="reader">
-	<article class="content" bind:this={scrollEl}>
+	<article class="content">
 		<p class="eyebrow"><span class="dot"></span>{i18n().t('learn.eyebrow')}</p>
 		<h1>{section.title}</h1>
 		{#each section.blocks as block (block.id)}
@@ -121,12 +118,13 @@
 <style>
 	.reader {
 		display: grid;
-		grid-template-columns: 1fr 320px;
-		height: calc(100vh - 56px);
+		grid-template-columns: minmax(0, 1fr) 320px;
+		align-items: start;
+		max-width: 1200px;
+		margin: 0 auto;
 	}
 	.content {
-		overflow-y: auto;
-		padding: var(--space-12) var(--space-12) var(--space-10);
+		padding: var(--space-12) var(--space-10) var(--space-16);
 		max-width: 760px;
 		width: 100%;
 		margin: 0 auto;
@@ -160,14 +158,14 @@
 		height: var(--space-16);
 	}
 	.rail {
+		position: sticky;
+		top: calc(56px + var(--space-5));
+		align-self: start;
 		border-left: 1px solid var(--border-subtle);
 		background: var(--surface-page);
 		padding: var(--space-6);
-		overflow-y: auto;
 	}
 	.rail-panel {
-		position: sticky;
-		top: 0;
 		background: var(--surface-elevated);
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-2xl);
@@ -205,14 +203,11 @@
 	@media (max-width: 768px) {
 		.reader {
 			grid-template-columns: 1fr;
-			height: auto;
 		}
 		.rail {
+			position: static;
 			border-left: none;
 			border-top: 1px solid var(--border-subtle);
-		}
-		.rail-panel {
-			position: static;
 		}
 	}
 </style>

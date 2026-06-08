@@ -18,11 +18,10 @@
 	.three {
 		display: grid;
 		grid-template-columns: 240px 1fr;
-		height: calc(100vh - 56px);
+		align-items: start;
 	}
 	.center {
 		min-width: 0;
-		overflow: hidden;
 		background: var(--surface-page);
 	}
 	@media (max-width: 768px) {

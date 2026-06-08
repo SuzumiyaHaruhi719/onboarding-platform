@@ -9,18 +9,16 @@ export interface HeartbeatController {
 
 interface HeartbeatOptions {
 	sectionId: string;
-	scrollEl: HTMLElement;
 	intervalMs?: number;
 }
 
 /**
- * Client-side reading-signal collector. Accumulates dwell time only while the
- * tab is visible+focused, tracks scroll-to-bottom, and forwards watched video
- * intervals. All values are advisory — the server re-validates everything.
+ * Client-side reading-signal collector. Accumulates dwell time while the tab is
+ * visible, tracks read-to-bottom via the natural page (window) scroll, and
+ * forwards watched video intervals. All values are advisory — the server
+ * re-validates everything.
  */
-export function startHeartbeat(opts: HeartbeatOptions): HeartbeatController | null {
-	if (!opts.scrollEl) return null;
-
+export function startHeartbeat(opts: HeartbeatOptions): HeartbeatController {
 	let dwellMs = 0;
 	let scrolledToBottom = false;
 	let intervals: VideoInterval[] = [];
@@ -28,9 +26,24 @@ export function startHeartbeat(opts: HeartbeatOptions): HeartbeatController | nu
 
 	function isActive(): boolean {
 		try {
-			return document.visibilityState === 'visible' && document.hasFocus();
+			// Accrue reading time whenever the tab is VISIBLE. Don't require OS window
+			// focus — a visible-but-unfocused window is still being read. Switching the
+			// tab away (visibilityState !== 'visible') still pauses, which is the real gate.
+			return document.visibilityState === 'visible';
 		} catch {
 			return true;
+		}
+	}
+
+	function checkScroll(): void {
+		try {
+			const doc = document.documentElement;
+			const full = Math.max(doc.scrollHeight, document.body.scrollHeight);
+			// Content fits in one viewport (genuinely short) OR scrolled near the bottom.
+			if (full <= window.innerHeight + 24) scrolledToBottom = true;
+			else if (window.innerHeight + window.scrollY >= full - 48) scrolledToBottom = true;
+		} catch {
+			scrolledToBottom = true;
 		}
 	}
 
@@ -38,15 +51,13 @@ export function startHeartbeat(opts: HeartbeatOptions): HeartbeatController | nu
 		const now = Date.now();
 		if (isActive()) dwellMs += now - last;
 		last = now;
+		// Re-check each second so short pages / late layout still register as read
+		// even when the user never fires a scroll event.
+		checkScroll();
 	}, 1000);
 
-	function onScroll(): void {
-		const el = opts.scrollEl;
-		if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) scrolledToBottom = true;
-	}
-	opts.scrollEl.addEventListener('scroll', onScroll, { passive: true });
-	// Content that fits without scrolling counts as read.
-	onScroll();
+	window.addEventListener('scroll', checkScroll, { passive: true });
+	checkScroll();
 
 	async function send(): Promise<void> {
 		try {
@@ -66,7 +77,7 @@ export function startHeartbeat(opts: HeartbeatOptions): HeartbeatController | nu
 		stop: () => {
 			clearInterval(tick);
 			clearInterval(beat);
-			opts.scrollEl.removeEventListener('scroll', onScroll);
+			window.removeEventListener('scroll', checkScroll);
 			void send();
 		},
 		setIntervals: (next) => {

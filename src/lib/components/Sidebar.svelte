@@ -44,6 +44,10 @@
 	.sidebar {
 		width: 240px;
 		flex: none;
+		position: sticky;
+		top: 56px;
+		height: calc(100vh - 56px);
+		align-self: start;
 		background: var(--surface-elevated);
 		border-right: 1px solid var(--border-subtle);
 		padding: var(--space-4);
