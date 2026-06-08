@@ -43,7 +43,7 @@ export function startHeartbeat(opts: HeartbeatOptions): HeartbeatController {
 			if (full <= window.innerHeight + 24) scrolledToBottom = true;
 			else if (window.innerHeight + window.scrollY >= full - 48) scrolledToBottom = true;
 		} catch {
-			scrolledToBottom = true;
+			// Fail closed: a measurement error must NOT count as "read to bottom".
 		}
 	}
 

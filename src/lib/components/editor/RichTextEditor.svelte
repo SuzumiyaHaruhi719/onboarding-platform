@@ -13,6 +13,7 @@
 	let element: HTMLDivElement;
 	let editor: Editor | null = null;
 	let tick = $state(0); // bumped on every transaction to refresh toolbar state
+	let err = $state('');
 	const startMarkdown = untrack(() => initial);
 
 	onMount(() => {
@@ -29,6 +30,7 @@
 			autofocus: 'end',
 			onTransaction: () => {
 				tick++;
+				if (err) err = '';
 			}
 		});
 		tick++;
@@ -52,7 +54,12 @@
 	function save(): void {
 		if (!editor) return;
 		const storage = editor.storage as { markdown?: { getMarkdown: () => string } };
-		onsave(storage.markdown?.getMarkdown() ?? '');
+		const md = storage.markdown?.getMarkdown() ?? '';
+		if (!md.trim()) {
+			err = '内容不能为空,请先输入文字';
+			return;
+		}
+		onsave(md);
 	}
 </script>
 
@@ -63,7 +70,6 @@
 		<span class="sep"></span>
 		<button type="button" class="b" class:on={active('bold')} title="加粗" onclick={() => chain().toggleBold().run()}>B</button>
 		<button type="button" class="i" class:on={active('italic')} title="斜体" onclick={() => chain().toggleItalic().run()}>I</button>
-		<button type="button" class="u" class:on={active('underline')} title="下划线" onclick={() => chain().toggleUnderline().run()}>U</button>
 		<button type="button" class="s" class:on={active('strike')} title="删除线" onclick={() => chain().toggleStrike().run()}>S</button>
 		<button type="button" class="code" class:on={active('code')} title="行内代码" onclick={() => chain().toggleCode().run()}>{'</>'}</button>
 		<span class="sep"></span>
@@ -78,7 +84,11 @@
 	<div class="actions">
 		<button class="btn primary" onclick={save}>保存</button>
 		<button class="btn ghost" onclick={oncancel}>取消</button>
-		<span class="tip">支持 Markdown:**粗体**、## 标题、- 列表、&gt; 引用…</span>
+		{#if err}
+			<span class="err" role="alert">{err}</span>
+		{:else}
+			<span class="tip">支持 Markdown:**粗体**、## 标题、- 列表、&gt; 引用…</span>
+		{/if}
 	</div>
 </div>
 
@@ -124,9 +134,6 @@
 	}
 	.toolbar .i {
 		font-style: italic;
-	}
-	.toolbar .u {
-		text-decoration: underline;
 	}
 	.toolbar .s {
 		text-decoration: line-through;
@@ -223,6 +230,12 @@
 	.tip {
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
+		margin-left: auto;
+	}
+	.err {
+		font-size: var(--text-xs);
+		font-weight: 600;
+		color: var(--error);
 		margin-left: auto;
 	}
 </style>

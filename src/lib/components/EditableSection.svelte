@@ -51,6 +51,7 @@
 	});
 
 	const TYPE_LABEL: Record<string, string> = {
+		richtext: '富文本',
 		heading: '标题', paragraph: '正文', list: '列表', quote: '引用',
 		callout: '提示', image: '图片', video: '视频', quiz: '题目'
 	};
@@ -88,23 +89,28 @@
 	async function createBlock(input: BlockInput, at: Pos): Promise<void> {
 		busy = true;
 		try {
-			await call('/api/editor/blocks/insert', { sectionId: section.id, blocks: [input], position: at });
-			await refresh();
+			const r = await call('/api/editor/blocks/insert', { sectionId: section.id, blocks: [input], position: at });
+			if (r?.ok) {
+				// Only dismiss the form on success — a rejected save keeps the user's draft.
+				pending = null;
+				menuAt = null;
+				await refresh();
+			}
 		} finally {
 			busy = false;
-			pending = null;
-			menuAt = null;
 		}
 	}
 
 	async function updateBlock(id: string, input: BlockInput): Promise<void> {
 		busy = true;
 		try {
-			await call('/api/editor/block', { id, block: input }, 'PATCH');
-			await refresh();
+			const r = await call('/api/editor/block', { id, block: input }, 'PATCH');
+			if (r?.ok) {
+				editingId = null;
+				await refresh();
+			}
 		} finally {
 			busy = false;
-			editingId = null;
 		}
 	}
 
