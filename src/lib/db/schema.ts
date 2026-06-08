@@ -61,6 +61,7 @@ export const progress = sqliteTable(
 		dwellMs: integer('dwell_ms').notNull().default(0),
 		videoIntervals: text('video_intervals').notNull().default('[]'), // JSON VideoInterval[]
 		quizPassed: integer('quiz_passed').notNull().default(0),
+		quizPassedIds: text('quiz_passed_ids').notNull().default('[]'), // JSON string[] of passed quiz ids
 		quizAttempts: integer('quiz_attempts').notNull().default(0),
 		quizLockedUntil: integer('quiz_locked_until'),
 		startedAt: integer('started_at').notNull(),

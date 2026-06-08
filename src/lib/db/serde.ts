@@ -34,6 +34,13 @@ export function parseOptions(json: string): string[] {
 	return v.map((o) => String(o));
 }
 
+/** Parse a JSON string[] column (e.g. progress.quizPassedIds); tolerant of junk. */
+export function parseStringArray(json: string): string[] {
+	const v = safeParse(json);
+	if (!Array.isArray(v)) return [];
+	return v.filter((s): s is string => typeof s === 'string');
+}
+
 export type QuizAnswer = number | number[] | boolean;
 
 export function parseAnswer(json: string): QuizAnswer {

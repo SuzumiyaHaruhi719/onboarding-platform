@@ -23,7 +23,8 @@ export const completeSchema = z.object({ sectionId });
 
 export const quizSubmitSchema = z.object({
 	sectionId,
-	answers: z.record(z.string(), z.unknown())
+	quizId: z.string().min(1).max(100),
+	answer: z.union([z.number().int(), z.boolean(), z.array(z.number().int()).max(20)])
 });
 
 // ---- Editor input ----
@@ -41,7 +42,7 @@ export const blockInputSchema = z.discriminatedUnion('type', [
 		body: z.string().max(2000)
 	}),
 	z.object({ type: z.literal('video'), src: z.string().min(1).max(2000), durationSec: z.number().positive().max(86400), poster: z.string().max(2000).optional() }),
-	z.object({ type: z.literal('quiz') }),
+	z.object({ type: z.literal('quiz'), quizId: z.string().min(1).max(100) }),
 	z.object({ type: z.literal('richtext'), markdown: z.string().min(1).max(50000) })
 ]);
 // Note: the BlockInput/QuizInput TS types live in $lib/content/types (client-safe,
@@ -78,12 +79,21 @@ export const updateSectionSchema = z.object({
 });
 export const reorderSchema = z.object({ orderedIds: z.array(sectionId).max(200) });
 
+const positionSchema = z.union([
+	z.literal('start'),
+	z.literal('end'),
+	z.object({ afterId: z.string().min(1).max(100) })
+]);
+
 export const insertBlocksSchema = z.object({
 	sectionId,
 	blocks: z.array(blockInputSchema).min(1).max(80),
-	position: z.union([
-		z.literal('start'),
-		z.literal('end'),
-		z.object({ afterId: z.string().min(1).max(100) })
-	])
+	position: positionSchema
+});
+
+/** Author a quiz inline → creates the quiz row + its quiz block in one call. */
+export const insertQuizBlockSchema = z.object({
+	sectionId,
+	quiz: quizInputSchema,
+	position: positionSchema
 });

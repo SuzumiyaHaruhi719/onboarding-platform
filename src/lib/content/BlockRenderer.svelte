@@ -40,7 +40,8 @@
 {:else if block.type === 'video'}
 	<VideoBlock src={block.src} durationSec={block.durationSec} poster={block.poster} {onintervals} />
 {:else if block.type === 'quiz'}
-	<QuizBlock {quizzes} {sectionId} {onpassed} />
+	{@const quiz = quizzes.find((q) => q.id === block.quizId)}
+	{#if quiz}<QuizBlock {quiz} {sectionId} {onpassed} />{/if}
 {:else if block.type === 'richtext'}
 	<RichTextBlock markdown={block.markdown} />
 {/if}

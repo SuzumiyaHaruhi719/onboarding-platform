@@ -30,8 +30,6 @@
 	let editingId = $state<string | null>(null);
 	let menuAt = $state<string | null>(null); // 'end' | 'start' | blockId — which "+" opened the menu
 	let pending = $state<{ at: Pos; type: BlockInput['type'] } | null>(null);
-	let editingQuizId = $state<string | null>(null);
-	let addingQuiz = $state(false);
 	let dragId = $state<string | null>(null);
 	let overId = $state<string | null>(null);
 
@@ -167,32 +165,37 @@
 		pending = { at: posFrom(at), type };
 	}
 
-	// ---- Quizzes ----
-	async function createQuiz(quiz: QuizInput): Promise<void> {
+	// ---- Quizzes (authored inline as their own blocks) ----
+	const quizById = $derived(new Map(quizzes.map((q) => [q.id, q])));
+	const QUIZ_TYPE_LABEL: Record<string, string> = { single: '单选', multiple: '多选', boolean: '判断' };
+	function isCorrectOption(q: EditorQuiz, i: number): boolean {
+		if (q.type === 'single') return q.answer === i;
+		if (q.type === 'multiple') return Array.isArray(q.answer) && q.answer.includes(i);
+		return q.answer === (i === 0); // boolean: option 0 == "true"
+	}
+
+	/** Author a quiz inline → creates the quiz + its block at the position. */
+	async function createQuizBlock(quiz: QuizInput, at: Pos): Promise<void> {
 		busy = true;
 		try {
-			await call('/api/editor/quiz', { sectionId: section.id, quiz });
-			await refresh();
+			const r = await call('/api/editor/quiz', { sectionId: section.id, quiz, position: at });
+			if (r?.ok) {
+				pending = null;
+				menuAt = null;
+				await refresh();
+			}
 		} finally {
 			busy = false;
-			addingQuiz = false;
 		}
 	}
-	async function updateQuiz(id: string, quiz: QuizInput): Promise<void> {
+	async function updateQuizById(id: string, quiz: QuizInput): Promise<void> {
 		busy = true;
 		try {
-			await call('/api/editor/quiz', { id, quiz }, 'PATCH');
-			await refresh();
-		} finally {
-			busy = false;
-			editingQuizId = null;
-		}
-	}
-	async function deleteQuiz(id: string): Promise<void> {
-		busy = true;
-		try {
-			await call('/api/editor/quiz', { id }, 'DELETE');
-			await refresh();
+			const r = await call('/api/editor/quiz', { id, quiz }, 'PATCH');
+			if (r?.ok) {
+				editingId = null;
+				await refresh();
+			}
 		} finally {
 			busy = false;
 		}
@@ -436,6 +439,8 @@
 					<div class="inserting">
 						{#if pending.type === 'richtext'}
 							<RichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+						{:else if pending.type === 'quiz'}
+							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
 						{:else}
 							<BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
 						{/if}
@@ -473,11 +478,34 @@
 							{#if editingId === block.id}
 								{#if block.type === 'richtext'}
 									<RichTextEditor initial={block.markdown} onsave={(md) => updateBlock(block.id, { type: 'richtext', markdown: md })} oncancel={() => (editingId = null)} />
+								{:else if block.type === 'quiz'}
+									{@const q = quizById.get(block.quizId)}
+									{#if q}
+										<QuizForm initial={q} onsave={(quiz) => updateQuizById(block.quizId, quiz)} oncancel={() => (editingId = null)} />
+									{/if}
 								{:else}
 									<BlockForm initial={block as Block} onsave={(b) => updateBlock(block.id, b)} oncancel={() => (editingId = null)} />
 								{/if}
 							{:else if block.type === 'quiz'}
-								<div class="quiz-ph"><Icon name="file-text" size={16} />题目区 — 学员在此作答(本节 {quizzes.length} 题,见下方题库)</div>
+								{@const q = quizById.get(block.quizId)}
+								{#if q}
+									<div class="quiz-card">
+										<div class="qc-head">
+											<span class="q-badge">{QUIZ_TYPE_LABEL[q.type]}</span>
+											<p class="qc-q">{q.question}</p>
+										</div>
+										<ul class="qc-opts">
+											{#each q.options as opt, oi (oi)}
+												<li class:correct={isCorrectOption(q, oi)}>
+													<span class="qc-mark">{#if isCorrectOption(q, oi)}<Icon name="check" size={13} stroke={3} />{/if}</span>
+													<span>{opt}</span>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{:else}
+									<div class="quiz-ph"><Icon name="file-text" size={16} />题目数据缺失</div>
+								{/if}
 							{:else}
 								<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />
 							{/if}
@@ -493,6 +521,8 @@
 							<div class="inserting after">
 								{#if pending.type === 'richtext'}
 									<RichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+								{:else if pending.type === 'quiz'}
+									<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
 								{:else}
 									<BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
 								{/if}
@@ -511,6 +541,8 @@
 							<div class="inserting">
 								{#if pending.type === 'richtext'}
 									<RichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
+								{:else if pending.type === 'quiz'}
+									<QuizForm onsave={(quiz) => createQuizBlock(quiz, 'end')} oncancel={() => (pending = null)} />
 								{:else}
 									<BlockForm presetType={pending.type} onsave={(b) => createBlock(b, 'end')} oncancel={() => (pending = null)} />
 								{/if}
@@ -518,28 +550,6 @@
 						{/if}
 					</div>
 				{/if}
-
-				<!-- Quiz bank -->
-				<section class="qbank">
-					<div class="qbank-head">
-						<h3>题库({quizzes.length})</h3>
-						<button class="btn-sm ghost" onclick={() => (addingQuiz = true)} disabled={addingQuiz}><Icon name="plus" size={14} /> 添加题目</button>
-					</div>
-					<p class="hint">答错题目的学员无法进入下一节。题目通过"题目"内容块在正文中呈现。</p>
-					{#if addingQuiz}<QuizForm onsave={createQuiz} oncancel={() => (addingQuiz = false)} />{/if}
-					{#each quizzes as q (q.id)}
-						{#if editingQuizId === q.id}
-							<QuizForm initial={q} onsave={(quiz) => updateQuiz(q.id, quiz)} oncancel={() => (editingQuizId = null)} />
-						{:else}
-							<div class="qrow">
-								<span class="badge">{q.type === 'single' ? '单选' : q.type === 'multiple' ? '多选' : '判断'}</span>
-								<span class="qq">{q.question}</span>
-								<button class="g-btn" title="编辑" aria-label="编辑题目" onclick={() => (editingQuizId = q.id)}><Icon name="pencil" size={15} /></button>
-								<button class="g-btn danger" title="删除" aria-label="删除题目" onclick={() => deleteQuiz(q.id)} disabled={busy}><Icon name="trash-2" size={15} /></button>
-							</div>
-						{/if}
-					{/each}
-				</section>
 			{/if}
 		</article>
 	</div>
@@ -924,43 +934,64 @@
 		background: var(--brand-50);
 	}
 
-	.qbank {
-		margin-top: var(--space-10);
-		padding-top: var(--space-6);
-		border-top: 1px solid var(--border-default);
-	}
-	.qbank-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-	.qbank-head h3 {
-		margin: 0;
-		font-size: var(--text-lg);
-		color: var(--text-primary);
-	}
 	.hint {
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
 		margin: var(--space-1) 0 var(--space-3);
 	}
-	.qrow {
+	/* Editor preview of a quiz block: question + options with the answer marked. */
+	.quiz-card {
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		background: var(--surface-subtle);
+		padding: var(--space-4);
+	}
+	.qc-head {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+	}
+	.q-badge {
+		flex: none;
+		margin-top: 2px;
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		color: var(--text-brand);
+		background: var(--brand-50);
+		border: 1px solid var(--brand-200);
+		border-radius: var(--radius-sm);
+		padding: 1px var(--space-2);
+	}
+	.qc-q {
+		margin: 0;
+		font-weight: 700;
+		color: var(--text-primary);
+	}
+	.qc-opts {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.qc-opts li {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		margin-bottom: var(--space-2);
-	}
-	.qq {
-		flex: 1;
-		min-width: 0;
 		font-size: var(--text-sm);
-		color: var(--text-secondary);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		color: var(--text-tertiary);
+	}
+	.qc-opts li.correct {
+		color: var(--text-brand);
+		font-weight: 600;
+	}
+	.qc-mark {
+		display: inline-flex;
+		width: 16px;
+		justify-content: center;
+		color: var(--brand-500);
 	}
 
 	.btn,

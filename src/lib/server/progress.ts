@@ -24,7 +24,7 @@ function prefixEnd(intervals: VideoInterval[]): number {
 	return first && first.start <= VIDEO_START_EPS ? first.end : 0;
 }
 import { getSectionView, getQuizAnswers, orderedSectionIds } from '$lib/db/queries';
-import { parseIntervals } from '$lib/db/serde';
+import { parseIntervals, parseStringArray } from '$lib/db/serde';
 import { gradeQuiz } from '$lib/quiz/grade';
 
 type ProgressRow = typeof schema.progress.$inferSelect;
@@ -107,26 +107,33 @@ export interface QuizSubmitResult {
 	locked: boolean;
 }
 
+/**
+ * Grade ONE quiz (inline, per-question). Correct answers accumulate in
+ * `quizPassedIds`; the section's quiz requirement is met once every quiz in it
+ * is passed (computed fresh in `attemptComplete`). Attempt limiting + cooldown
+ * stay section-wide to throttle brute-forcing across all of a section's quizzes.
+ */
 export function submitQuiz(
 	userId: string,
 	sectionId: string,
-	answers: Record<string, unknown>
+	quizId: string,
+	answer: unknown
 ): QuizSubmitResult {
 	const r = startSection(userId, sectionId);
 	const now = Date.now();
 
+	const passedIds = parseStringArray(r.quizPassedIds);
 	if (r.quizLockedUntil && r.quizLockedUntil > now) {
-		return { passed: r.quizPassed === 1, locked: true };
+		return { passed: passedIds.includes(quizId), locked: true };
 	}
 
-	const keys = getQuizAnswers(sectionId);
-	const allCorrect =
-		keys.length > 0 &&
-		keys.every((q) => gradeQuiz(q.type, q.answer, answers[q.id], q.optionCount));
+	const key = getQuizAnswers(sectionId).find((q) => q.id === quizId);
+	const correct = !!key && gradeQuiz(key.type, key.answer, answer, key.optionCount);
 
-	if (allCorrect) {
+	if (correct) {
+		const nextPassed = passedIds.includes(quizId) ? passedIds : [...passedIds, quizId];
 		db.update(schema.progress)
-			.set({ quizPassed: 1, quizAttempts: 0, quizLockedUntil: null })
+			.set({ quizPassedIds: JSON.stringify(nextPassed), quizAttempts: 0, quizLockedUntil: null })
 			.where(whereRow(userId, sectionId))
 			.run();
 		return { passed: true, locked: false };
@@ -136,13 +143,20 @@ export function submitQuiz(
 	const locked = attempts >= QUIZ_MAX_ATTEMPTS;
 	db.update(schema.progress)
 		.set({
-			quizPassed: 0,
 			quizAttempts: locked ? 0 : attempts,
 			quizLockedUntil: locked ? now + QUIZ_COOLDOWN_MS : r.quizLockedUntil
 		})
 		.where(whereRow(userId, sectionId))
 		.run();
 	return { passed: false, locked };
+}
+
+/** All of a section's quizzes passed? (vacuously true when there are none.) */
+function allQuizzesPassed(sectionId: string, quizPassedIds: string): boolean {
+	const ids = getQuizAnswers(sectionId).map((q) => q.id);
+	if (ids.length === 0) return true;
+	const passed = new Set(parseStringArray(quizPassedIds));
+	return ids.every((id) => passed.has(id));
 }
 
 export type CompleteResult = CompletionResult & { nextId: string | null };
@@ -173,7 +187,7 @@ export function attemptComplete(userId: string, sectionId: string): CompleteResu
 			scrolledToBottom: r.scrolledToBottom === 1,
 			dwellMs: r.dwellMs,
 			videoIntervals: sanitizeIntervals(parseIntervals(r.videoIntervals), maxEnd),
-			quizPassed: r.quizPassed === 1,
+			quizPassed: allQuizzesPassed(sectionId, r.quizPassedIds),
 			elapsedMs: now - r.startedAt
 		},
 		view.requirements

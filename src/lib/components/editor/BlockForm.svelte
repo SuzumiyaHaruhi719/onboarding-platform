@@ -68,10 +68,8 @@
 				return src.trim() && durationSec > 0
 					? { type, src: src.trim(), durationSec: Number(durationSec), poster: poster.trim() || undefined }
 					: null;
-			case 'quiz':
-				return { type };
 			default:
-				return null; // richtext is handled by RichTextEditor, not this form
+				return null; // richtext + quiz are handled by their own editors, not this form
 		}
 	}
 

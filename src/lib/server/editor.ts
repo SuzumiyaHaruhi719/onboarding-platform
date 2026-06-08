@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq, asc, sql } from 'drizzle-orm';
 import { db, schema } from '$lib/db';
-import { parseOptions, parseAnswer } from '$lib/db/serde';
+import { parseOptions, parseAnswer, parseBlockData } from '$lib/db/serde';
 import type { BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
 
 /** Quizzes WITH correct answers — editor-only read model. */
@@ -102,6 +102,14 @@ export function updateBlock(id: string, block: BlockInput): void {
 }
 
 export function deleteBlock(id: string): void {
+	// A quiz block owns its quiz row 1:1 — cascade so no orphan quiz keeps
+	// gating the section (which would soft-lock learners with no way to answer).
+	const row = db.select().from(schema.blocks).where(eq(schema.blocks.id, id)).get();
+	if (row?.type === 'quiz') {
+		const data = parseBlockData(row.content);
+		const quizId = data && typeof data.quizId === 'string' ? data.quizId : null;
+		if (quizId) db.delete(schema.quizzes).where(eq(schema.quizzes.id, quizId)).run();
+	}
 	db.delete(schema.blocks).where(eq(schema.blocks.id, id)).run();
 }
 
@@ -147,7 +155,22 @@ export function insertBlocksAt(sectionId: string, blocks: BlockInput[], position
 }
 
 // ---- Quizzes ----
-export function createQuiz(sectionId: string, quiz: QuizInput): string {
+/**
+ * Author a quiz inline: create the quiz row AND its quiz block (linked by
+ * quizId) at the chosen position, in lockstep. This replaces the old
+ * "quiz bank + generic 题目区 placeholder" two-step model.
+ */
+export function insertQuizBlock(
+	sectionId: string,
+	quiz: QuizInput,
+	position: InsertPosition
+): { quizId: string; count: number } {
+	const quizId = createQuiz(sectionId, quiz);
+	const count = insertBlocksAt(sectionId, [{ type: 'quiz', quizId }], position);
+	return { quizId, count };
+}
+
+function createQuiz(sectionId: string, quiz: QuizInput): string {
 	const id = randomUUID();
 	db.insert(schema.quizzes)
 		.values({

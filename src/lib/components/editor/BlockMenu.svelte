@@ -12,7 +12,7 @@
 		{ type: 'callout', icon: 'info', label: '提示框', desc: '信息 / 警告 / 成功' },
 		{ type: 'image', icon: 'image', label: '图片', desc: '插入图片 URL' },
 		{ type: 'video', icon: 'video', label: '视频', desc: '上传或粘贴视频' },
-		{ type: 'quiz', icon: 'circle-check', label: '题目', desc: '在此处展示本节题目' }
+		{ type: 'quiz', icon: 'circle-check', label: '题目', desc: '插入一道题目,学员需答对才能继续' }
 	];
 
 	function onKey(e: KeyboardEvent): void {
