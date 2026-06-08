@@ -1,7 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { requireEditor } from '$lib/server/guard';
-import { insertQuizBlock, updateQuiz, deleteQuiz } from '$lib/server/editor';
+import { insertQuizBlock, updateQuiz } from '$lib/server/editor';
 import { quizInputSchema, insertQuizBlockSchema } from '$lib/server/schemas';
 
 const id = z.string().min(1).max(100);
@@ -24,11 +24,5 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 	updateQuiz(parsed.data.id, parsed.data.quiz);
 	return json({ ok: true });
 };
-
-export const DELETE: RequestHandler = async ({ request, locals }) => {
-	requireEditor(locals);
-	const parsed = z.object({ id }).safeParse(await request.json().catch(() => null));
-	if (!parsed.success) return json({ ok: false }, { status: 400 });
-	deleteQuiz(parsed.data.id);
-	return json({ ok: true });
-};
+// Quiz deletion goes through the block DELETE endpoint (deleteBlock cascades to
+// the owned quiz row), keeping the quiz↔block 1:1 invariant intact.

@@ -95,6 +95,15 @@ export function createBlock(sectionId: string, block: BlockInput): string {
 }
 
 export function updateBlock(id: string, block: BlockInput): void {
+	// Quiz blocks own a quiz row 1:1 and are edited via updateQuiz — never the
+	// generic path (which would orphan the quiz row or break the link).
+	if (block.type === 'quiz') return;
+	const existing = db
+		.select({ type: schema.blocks.type })
+		.from(schema.blocks)
+		.where(eq(schema.blocks.id, id))
+		.get();
+	if (existing?.type === 'quiz') return;
 	db.update(schema.blocks)
 		.set({ type: block.type, content: JSON.stringify(block) })
 		.where(eq(schema.blocks.id, id))
@@ -198,9 +207,6 @@ export function updateQuiz(id: string, quiz: QuizInput): void {
 		.run();
 }
 
-export function deleteQuiz(id: string): void {
-	db.delete(schema.quizzes).where(eq(schema.quizzes.id, id)).run();
-}
 
 // ---- Editor read model ----
 export interface EditorModule {

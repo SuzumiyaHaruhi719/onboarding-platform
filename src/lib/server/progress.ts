@@ -131,9 +131,13 @@ export function submitQuiz(
 	const correct = !!key && gradeQuiz(key.type, key.answer, answer, key.optionCount);
 
 	if (correct) {
+		// Record the pass but DON'T refund the section-wide attempt budget: resetting
+		// quizAttempts on each per-quiz success would let a learner brute-force small
+		// (boolean/single) quizzes indefinitely, since every lucky guess clears the
+		// failure count. Wrong answers still accumulate toward the cap below.
 		const nextPassed = passedIds.includes(quizId) ? passedIds : [...passedIds, quizId];
 		db.update(schema.progress)
-			.set({ quizPassedIds: JSON.stringify(nextPassed), quizAttempts: 0, quizLockedUntil: null })
+			.set({ quizPassedIds: JSON.stringify(nextPassed) })
 			.where(whereRow(userId, sectionId))
 			.run();
 		return { passed: true, locked: false };

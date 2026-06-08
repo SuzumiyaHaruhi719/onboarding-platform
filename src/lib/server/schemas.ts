@@ -42,8 +42,10 @@ export const blockInputSchema = z.discriminatedUnion('type', [
 		body: z.string().max(2000)
 	}),
 	z.object({ type: z.literal('video'), src: z.string().min(1).max(2000), durationSec: z.number().positive().max(86400), poster: z.string().max(2000).optional() }),
-	z.object({ type: z.literal('quiz'), quizId: z.string().min(1).max(100) }),
 	z.object({ type: z.literal('richtext'), markdown: z.string().min(1).max(50000) })
+	// NOTE: 'quiz' is intentionally absent — quiz blocks own a quiz row 1:1 and are
+	// only ever created/updated/deleted via insertQuizBlock()/updateQuiz()/deleteBlock(),
+	// never the generic block insert/update endpoints.
 ]);
 // Note: the BlockInput/QuizInput TS types live in $lib/content/types (client-safe,
 // single source of truth). These Zod schemas validate to those same shapes.

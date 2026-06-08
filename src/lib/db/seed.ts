@@ -9,6 +9,38 @@ function addBlock(sectionId: string, order: number, data: BlockData): void {
 		.run();
 }
 
+type QuizSeed = {
+	type: 'single' | 'multiple' | 'boolean';
+	question: string;
+	options: string[];
+	answer: number | number[] | boolean;
+};
+
+/** Create a quiz row + its linked quiz block (1:1), matching the inline model. */
+function addQuiz(sectionId: string, blockOrder: number, quizOrder: number, quiz: QuizSeed): void {
+	const quizId = randomUUID();
+	db.insert(schema.quizzes)
+		.values({
+			id: quizId,
+			sectionId,
+			order: quizOrder,
+			type: quiz.type,
+			question: quiz.question,
+			options: JSON.stringify(quiz.options),
+			answer: JSON.stringify(quiz.answer)
+		})
+		.run();
+	db.insert(schema.blocks)
+		.values({
+			id: randomUUID(),
+			sectionId,
+			type: 'quiz',
+			order: blockOrder,
+			content: JSON.stringify({ type: 'quiz', quizId })
+		})
+		.run();
+}
+
 function reset(): void {
 	db.delete(schema.quizzes).run();
 	db.delete(schema.blocks).run();
@@ -56,29 +88,18 @@ addBlock(s2, 2, {
 	src: 'https://www.w3schools.com/html/mov_bbb.mp4',
 	durationSec: 10
 });
-addBlock(s2, 3, { type: 'quiz' });
-
-db.insert(schema.quizzes)
-	.values({
-		id: randomUUID(),
-		sectionId: s2,
-		order: 0,
-		type: 'single',
-		question: '收到来历不明的可疑邮件,正确做法是?',
-		options: JSON.stringify(['直接点击其中的链接', '转发给同事确认', '上报公司安全团队']),
-		answer: JSON.stringify(2)
-	})
-	.run();
-db.insert(schema.quizzes)
-	.values({
-		id: randomUUID(),
-		sectionId: s2,
-		order: 1,
-		type: 'boolean',
-		question: '为了方便协作,可以与同事共用账号密码。',
-		options: JSON.stringify(['对', '错']),
-		answer: JSON.stringify(false)
-	})
-	.run();
+// Quizzes are authored inline as their own blocks (1:1 quiz row ↔ quiz block).
+addQuiz(s2, 3, 0, {
+	type: 'single',
+	question: '收到来历不明的可疑邮件,正确做法是?',
+	options: ['直接点击其中的链接', '转发给同事确认', '上报公司安全团队'],
+	answer: 2
+});
+addQuiz(s2, 4, 1, {
+	type: 'boolean',
+	question: '为了方便协作,可以与同事共用账号密码。',
+	options: ['对', '错'],
+	answer: false
+});
 
 process.stdout.write('Seeded: 1 module, 2 sections, blocks, 2 quizzes.\n');
