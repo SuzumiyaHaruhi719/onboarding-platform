@@ -1,9 +1,16 @@
 # 新员工入职阅读平台 · Onboarding Platform
 
-类 Kognity 的**强制阅读式**入职学习网站。学员必须完整读完文档、看完视频、答对题目才能逐节解锁;**不得以任何形式跳过**。编辑者(P2+)可上传文件,由多模态 agent(qwen3.7-plus)转译为内容块。
+类 Kognity 的**强制阅读式**入职学习网站。学员必须完整读完文档、看完视频、答对题目才能逐节解锁;**不得以任何形式跳过**。编辑者可手工编排内容,或上传文件由多模态 agent(qwen3.7-plus)转译为内容块。
 
-> 当前进度:**P1(基座 + 学员核心)** 已完成。分期路线见
-> [`docs/superpowers/specs/2026-06-08-onboarding-platform-design.md`](docs/superpowers/specs/2026-06-08-onboarding-platform-design.md)。
+> 当前进度:**P1 学员核心 + P2 编辑器 + P3 多模态转译** 已完成。P4(真鉴权 / 分析看板 / 响应式打磨)待做。
+> 设计与计划见 [`docs/superpowers/`](docs/superpowers/)。
+
+## 功能
+
+- **学员端**:三栏阅读界面、服务端权威防跳过、实时进度与完成要求清单、单选/多选/判断题门禁。
+- **编辑端**(`/editor`):模块/章节/内容块/题目的增删改 + 拖序、视频上传、章节最短阅读时长设置。
+- **AI 转译**:上传 txt/md/docx/pdf/pptx → qwen3.7-plus 转成符合设计规范的内容块(无密钥时本地解析兜底)。
+- **双主题 + 中英双语**,严格遵循 GLP 设计规范。
 
 ## 技术栈
 
@@ -13,13 +20,15 @@ SvelteKit(Svelte 5 runes)· TypeScript(strict)· Drizzle ORM + better-sqlite3 ·
 
 ```sh
 npm install
-cp .env.example .env        # 按需修改;P3 才需要 DASHSCOPE_API_KEY
+cp .env.example .env        # 填入轮换后的 DASHSCOPE_API_KEY 才启用 AI 转译(否则本地兜底)
 npm run db:push             # 在 SQLite 建表
 npm run db:seed             # 填充示例课程(1 模块 / 2 节 / 视频 + 题目)
-npm run dev                 # http://localhost:5173
+npm run dev -- --port 5180  # 5173 常被占用,指定其它端口
 ```
 
-> ⚠️ 本机若开着 Clash 代理,localhost 可能打不开——把 `localhost`/`127.0.0.1` 加入 NO_PROXY 或临时关代理。
+进站选「新员工」进入学习,选「编辑者」进入 `/editor` 工作区。
+
+> ⚠️ 本机若开着 Clash 代理,localhost 可能打不开——把 `localhost`/`127.0.0.1` 加入 NO_PROXY,或直接访问 `http://127.0.0.1:5180/`。
 
 ## 常用脚本
 
@@ -39,16 +48,18 @@ src/
   lib/
     design/      设计令牌(浅/深双主题)+ 主题切换
     i18n/        中英字典 + 响应式 context translator
-    content/     内容块类型 + 各块组件 + BlockRenderer
+    content/     内容块类型(含 BlockInput/QuizInput/EditorQuiz)+ 各块组件 + BlockRenderer
     anti-skip/   防跳过:区间引擎 / 完成规则 / 常量 / 客户端心跳采集
     quiz/        判分逻辑(纯函数)
     db/          Drizzle schema / client / 查询 / serde / 种子
-    server/      会话(匿名角色)/ 进度服务 / Zod schema
-    components/   ThemeToggle · LangToggle · Sidebar · ProgressRing · ContinueButton
+    server/      会话 · 进度服务 · Zod schema · guard · editor(CRUD)· media · extract · converter · agent(qwen)· ingest
+    components/  ThemeToggle · LangToggle · Sidebar · ProgressRing · ContinueButton · RequirementChecklist · editor/{BlockForm,QuizForm}
   routes/
     +page.svelte             角色选择落地页
-    api/                     role · progress/heartbeat · progress/complete · quiz/submit
-    learn/[sectionId]/       三栏阅读界面 + 服务端解锁守卫
+    api/                     role · progress/{heartbeat,complete} · quiz/submit · editor/{module,section,block,block/reorder,quiz,upload,ingest}
+    media/[file]/            上传视频的流式服务
+    learn/[sectionId]/       学员三栏阅读界面 + 服务端解锁守卫
+    editor/                  编辑者工作区(dashboard + sections/[id] 块/题/视频/AI 转译)
 ```
 
 ## 防跳过设计(核心)
