@@ -36,9 +36,15 @@ export function listModulesWithSections(): ModuleWithSections[] {
 	}));
 }
 
-/** Global learning order across modules, with stable tie-breakers. */
+/** Global learning order across modules — one ordered query, stable tie-breakers. */
 export function orderedSectionIds(): string[] {
-	return listModulesWithSections().flatMap((m) => m.sections.map((s) => s.id));
+	return db
+		.select({ id: schema.sections.id })
+		.from(schema.sections)
+		.innerJoin(schema.modules, eq(schema.sections.moduleId, schema.modules.id))
+		.orderBy(asc(schema.modules.order), asc(schema.sections.order), asc(schema.sections.id))
+		.all()
+		.map((r) => r.id);
 }
 
 export function getSectionView(sectionId: string): SectionView | null {
@@ -74,6 +80,8 @@ export function getSectionView(sectionId: string): SectionView | null {
 		options: parseOptions(q.options)
 	}));
 
+	// P1 constraint: at most one video per section. The first video defines the
+	// completion requirement; the learner page tracks a single video timeline.
 	const videoBlock = blocks.find(
 		(b): b is Extract<Block, { type: 'video' }> => b.type === 'video'
 	);

@@ -7,8 +7,22 @@ import type { CompletionResult, VideoInterval } from '$lib/anti-skip/types';
 import {
 	MAX_CREDIT_WINDOW_MS,
 	QUIZ_MAX_ATTEMPTS,
-	QUIZ_COOLDOWN_MS
+	QUIZ_COOLDOWN_MS,
+	VIDEO_START_EPS
 } from '$lib/anti-skip/constants';
+
+// CONCURRENCY INVARIANT: every mutating function below performs its read →
+// compute → write synchronously with NO `await` in between. On single-threaded
+// Node with synchronous better-sqlite3, that makes each one atomic relative to
+// other requests (the event loop cannot interleave them). Do NOT introduce an
+// `await` mid-function — if you must, wrap the read+write in `db.transaction`.
+
+/** End of the watched [0, end] prefix (0 if playback never started near 0). */
+function prefixEnd(intervals: VideoInterval[]): number {
+	const merged = mergeIntervals(intervals);
+	const first = merged[0];
+	return first && first.start <= VIDEO_START_EPS ? first.end : 0;
+}
 import { getSectionView, getQuizAnswers, orderedSectionIds } from '$lib/db/queries';
 import { parseIntervals } from '$lib/db/serde';
 import { gradeQuiz } from '$lib/quiz/grade';
@@ -68,20 +82,22 @@ export function applyHeartbeat(userId: string, sectionId: string, hb: HeartbeatI
 	// Scroll: monotonic OR.
 	const scrolledToBottom = r.scrolledToBottom === 1 || hb.scrolledToBottom ? 1 : 0;
 
-	// Video: union of stored + sanitized client intervals (clamped to duration).
+	// Video: credit only the forward prefix growth allowed by elapsed time since
+	// the last beat (same rate-cap as dwell). No-seek playback always yields a
+	// [0, end] prefix, so store it normalized as a single interval. This blocks
+	// the "wait long enough, then POST {0,duration}" forgery.
 	const maxEnd = view?.requirements.videoDurationSec ?? 0;
-	const merged = mergeIntervals([
-		...parseIntervals(r.videoIntervals),
-		...sanitizeIntervals(hb.videoIntervals, maxEnd)
-	]);
+	const windowSec = windowMs / 1000;
+	const storedEnd = prefixEnd(parseIntervals(r.videoIntervals));
+	const clientEnd = prefixEnd(sanitizeIntervals(hb.videoIntervals, maxEnd));
+	const creditedEnd = Math.min(
+		maxEnd,
+		storedEnd + Math.max(0, Math.min(clientEnd - storedEnd, windowSec))
+	);
+	const videoIntervals = creditedEnd > 0 ? JSON.stringify([{ start: 0, end: creditedEnd }]) : '[]';
 
 	db.update(schema.progress)
-		.set({
-			dwellMs,
-			scrolledToBottom,
-			videoIntervals: JSON.stringify(merged),
-			lastHeartbeatAt: now
-		})
+		.set({ dwellMs, scrolledToBottom, videoIntervals, lastHeartbeatAt: now })
 		.where(whereRow(userId, sectionId))
 		.run();
 }
@@ -131,19 +147,32 @@ export function submitQuiz(
 
 export type CompleteResult = CompletionResult & { nextId: string | null };
 
+function nextSectionId(sectionId: string): string | null {
+	const ids = orderedSectionIds();
+	const idx = ids.indexOf(sectionId);
+	return idx >= 0 && idx < ids.length - 1 ? ids[idx + 1]! : null;
+}
+
+/**
+ * Idempotent: safe to poll. Finalizes the section the moment server-validated
+ * requirements are met; once completed it returns early without rewriting state.
+ */
 export function attemptComplete(userId: string, sectionId: string): CompleteResult {
 	const view = getSectionView(sectionId);
 	if (!view) return { complete: false, reasons: ['scroll'], nextId: null };
 
-	startSection(userId, sectionId);
-	const r = getRow(userId, sectionId)!; // re-read after ensuring the row exists
-	const now = Date.now();
+	const r = startSection(userId, sectionId);
+	if (r.status === 'completed') {
+		return { complete: true, reasons: [], nextId: nextSectionId(sectionId) };
+	}
 
+	const maxEnd = view.requirements.videoDurationSec ?? 0;
+	const now = Date.now();
 	const result = evaluateCompletion(
 		{
 			scrolledToBottom: r.scrolledToBottom === 1,
 			dwellMs: r.dwellMs,
-			videoIntervals: parseIntervals(r.videoIntervals),
+			videoIntervals: sanitizeIntervals(parseIntervals(r.videoIntervals), maxEnd),
 			quizPassed: r.quizPassed === 1,
 			elapsedMs: now - r.startedAt
 		},
@@ -156,9 +185,7 @@ export function attemptComplete(userId: string, sectionId: string): CompleteResu
 			.set({ status: 'completed', completedAt: now, readPct: 1 })
 			.where(whereRow(userId, sectionId))
 			.run();
-		const ids = orderedSectionIds();
-		const idx = ids.indexOf(sectionId);
-		nextId = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1]! : null;
+		nextId = nextSectionId(sectionId);
 	}
 
 	return { ...result, nextId };
