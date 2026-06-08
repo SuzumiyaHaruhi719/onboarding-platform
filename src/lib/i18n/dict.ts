@@ -14,7 +14,14 @@ export const dict = {
 	'learn.continue': { zh: '继续', en: 'Continue' },
 	'learn.locked': { zh: '完成本节后解锁', en: 'Complete this section to unlock' },
 	'learn.progress': { zh: '本节进度', en: 'Section progress' },
+	'learn.requirements': { zh: '完成要求', en: 'Requirements' },
 	'learn.done': { zh: '已完成', en: 'Completed' },
+	'learn.eyebrow': { zh: '入职课程', en: 'Onboarding' },
+	'learn.allDone': { zh: '本节已全部完成', en: 'Section complete' },
+	'chk.scroll': { zh: '读完本节正文', en: 'Read to the end' },
+	'chk.dwell': { zh: '达到最短阅读时长', en: 'Minimum reading time' },
+	'chk.video': { zh: '完整观看视频', en: 'Watch the full video' },
+	'chk.quiz': { zh: '答对所有题目', en: 'Pass the questions' },
 	'learn.editorComingSoon': {
 		zh: '编辑者工作区将在 P2 开放,现在先以学员身份预览。',
 		en: 'The editor workspace ships in P2. Previewing as a learner for now.'

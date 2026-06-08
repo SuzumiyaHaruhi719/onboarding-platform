@@ -3,6 +3,7 @@
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import ProgressRing from '$lib/components/ProgressRing.svelte';
 	import ContinueButton from '$lib/components/ContinueButton.svelte';
+	import RequirementChecklist from '$lib/components/RequirementChecklist.svelte';
 	import { useI18n } from '$lib/i18n/context';
 	import { startHeartbeat, type HeartbeatController } from '$lib/anti-skip/heartbeat';
 	import type { VideoInterval } from '$lib/anti-skip/types';
@@ -87,6 +88,7 @@
 
 <div class="reader">
 	<article class="content" bind:this={scrollEl}>
+		<p class="eyebrow"><span class="dot"></span>{i18n().t('learn.eyebrow')}</p>
 		<h1>{data.section.title}</h1>
 		{#each data.section.blocks as block (block.id)}
 			<BlockRenderer
@@ -101,13 +103,20 @@
 	</article>
 
 	<aside class="rail">
-		<div class="rail-t">{i18n().t('learn.progress')}</div>
-		<ProgressRing {pct} />
-		{#if complete}
-			<p class="done">✓ {i18n().t('learn.done')}</p>
-		{/if}
-		<div class="rail-bottom">
-			<ContinueButton enabled={complete} {reasons} onclick={onContinue} />
+		<div class="rail-panel">
+			<div class="rail-label">{i18n().t('learn.progress')}</div>
+			<ProgressRing {pct} />
+
+			<div class="rail-section">
+				<div class="rail-label">{i18n().t('learn.requirements')}</div>
+				<RequirementChecklist requirements={data.section.requirements} {reasons} {complete} />
+			</div>
+
+			{#if complete}
+				<p class="done">✓ {i18n().t('learn.allDone')}</p>
+			{/if}
+
+			<ContinueButton enabled={complete} onclick={onContinue} />
 		</div>
 	</aside>
 </div>
@@ -115,56 +124,98 @@
 <style>
 	.reader {
 		display: grid;
-		grid-template-columns: 1fr 280px;
+		grid-template-columns: 1fr 320px;
 		height: calc(100vh - 56px);
 	}
 	.content {
 		overflow-y: auto;
-		padding: var(--space-8) var(--space-10);
-		max-width: 860px;
+		padding: var(--space-12) var(--space-12) var(--space-10);
+		max-width: 820px;
 		width: 100%;
 		margin: 0 auto;
 	}
+	.eyebrow {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-brand);
+		margin: 0 0 var(--space-3);
+	}
+	.eyebrow .dot {
+		width: 6px;
+		height: 6px;
+		border-radius: var(--radius-full);
+		background: var(--brand-500);
+	}
 	.content h1 {
-		font-size: var(--text-3xl);
+		font-size: var(--text-4xl);
+		font-weight: 800;
+		line-height: 1.2;
 		color: var(--text-primary);
-		margin: 0 0 var(--space-6);
+		margin: 0 0 var(--space-8);
+		letter-spacing: -0.01em;
 	}
 	.end-spacer {
 		height: var(--space-16);
 	}
 	.rail {
 		border-left: 1px solid var(--border-subtle);
+		background: var(--surface-page);
+		padding: var(--space-6);
+		overflow-y: auto;
+	}
+	.rail-panel {
+		position: sticky;
+		top: 0;
 		background: var(--surface-elevated);
-		padding: var(--space-5);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-2xl);
+		box-shadow: var(--shadow-sm);
+		padding: var(--space-6);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: var(--space-5);
 	}
-	.rail-t {
+	.rail-label {
 		font-family: var(--font-mono);
 		font-size: var(--text-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--text-tertiary);
+		margin-bottom: var(--space-3);
+	}
+	.rail-section {
+		border-top: 1px solid var(--border-subtle);
+		padding-top: var(--space-5);
+	}
+	.rail-section .rail-label {
+		margin-bottom: var(--space-3);
 	}
 	.done {
-		text-align: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
 		color: var(--success);
 		font-weight: 700;
 		font-size: var(--text-sm);
 		margin: 0;
 	}
-	.rail-bottom {
-		margin-top: auto;
-	}
 	@media (max-width: 768px) {
 		.reader {
 			grid-template-columns: 1fr;
+			height: auto;
 		}
 		.rail {
 			border-left: none;
 			border-top: 1px solid var(--border-subtle);
+		}
+		.rail-panel {
+			position: static;
 		}
 	}
 </style>
