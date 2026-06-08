@@ -2,10 +2,13 @@
 	import EditableSection from '$lib/components/EditableSection.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import LearnerReader from '$lib/components/LearnerReader.svelte';
+	import { useI18n } from '$lib/i18n/context';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 	const editorPreview = $derived(data.role === 'editor' && data.viewRole === 'learner');
 </script>
 
@@ -15,14 +18,14 @@
 	{/key}
 {:else}
 	{#if editorPreview}
-		<div class="preview-exit" role="status" aria-label="真实学生视图预览">
+		<div class="preview-exit" role="status" aria-label={tx('真实学生视图预览', 'Live learner preview')}>
 			<div>
-				<span class="preview-kicker">真实学生视图</span>
-				<strong>你正在以学员身份预览这一节</strong>
+				<span class="preview-kicker">{tx('真实学生视图', 'Live learner view')}</span>
+				<strong>{tx('你正在以学员身份预览这一节', 'You are previewing this section as a learner')}</strong>
 			</div>
 			<a class="back-edit" href={`/learn/${data.section.id}`}>
 				<Icon name="square-pen" size={16} />
-				返回编辑
+				{tx('返回编辑', 'Back to editor')}
 			</a>
 		</div>
 	{/if}

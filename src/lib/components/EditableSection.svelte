@@ -9,6 +9,7 @@
 	import LazyRichTextEditor from '$lib/components/editor/LazyRichTextEditor.svelte';
 	import QuizForm from '$lib/components/editor/QuizForm.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { useI18n } from '$lib/i18n/context';
 	import type { SectionView, Block, BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
 	import type { ModuleWithSections } from '$lib/db/queries';
 
@@ -20,6 +21,8 @@
 
 	const JSON_HEADERS = { 'content-type': 'application/json' };
 	const noop = (): void => {};
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	type Pos = 'start' | 'end' | { afterId: string };
 
@@ -58,20 +61,27 @@
 		}
 	});
 
-	const TYPE_LABEL: Record<string, string> = {
-		richtext: '富文本',
-		heading: '标题', paragraph: '正文', list: '列表', quote: '引用',
-		callout: '提示', image: '图片', video: '视频', quiz: '题目'
+	const TYPE_LABEL: Record<string, () => string> = {
+		richtext: () => tx('富文本', 'Rich text'),
+		heading: () => tx('标题', 'Heading'),
+		paragraph: () => tx('正文', 'Paragraph'),
+		list: () => tx('列表', 'List'),
+		quote: () => tx('引用', 'Quote'),
+		callout: () => tx('提示', 'Callout'),
+		image: () => tx('图片', 'Image'),
+		video: () => tx('视频', 'Video'),
+		quiz: () => tx('题目', 'Quiz')
 	};
-	const SIDE_TYPES: { type: BlockInput['type']; icon: string; label: string; desc: string }[] = [
-		{ type: 'richtext', icon: 'file-text', label: '图文正文', desc: '插入一段独立富文本内容' },
-		{ type: 'callout', icon: 'info', label: '重点提示', desc: '安全提醒、结论或注意事项' },
-		{ type: 'image', icon: 'image', label: '图片说明', desc: '图片、替代文本和图注' },
-		{ type: 'video', icon: 'video', label: '视频片段', desc: '上传视频或粘贴视频地址' },
-		{ type: 'quiz', icon: 'circle-check', label: '检查题', desc: '学生通过后继续学习' }
+	const typeLabel = (type: string): string => TYPE_LABEL[type]?.() ?? type;
+	const SIDE_TYPES: { type: BlockInput['type']; icon: string; label: () => string; desc: () => string }[] = [
+		{ type: 'richtext', icon: 'file-text', label: () => tx('图文正文', 'Rich text'), desc: () => tx('插入一段独立富文本内容', 'Insert a standalone rich text block') },
+		{ type: 'callout', icon: 'info', label: () => tx('重点提示', 'Callout'), desc: () => tx('安全提醒、结论或注意事项', 'Safety note, conclusion, or warning') },
+		{ type: 'image', icon: 'image', label: () => tx('图片说明', 'Image'), desc: () => tx('图片、替代文本和图注', 'Image, alt text, and caption') },
+		{ type: 'video', icon: 'video', label: () => tx('视频片段', 'Video'), desc: () => tx('上传或粘贴视频地址', 'Upload or paste a video URL') },
+		{ type: 'quiz', icon: 'circle-check', label: () => tx('检查题', 'Quiz'), desc: () => tx('学生通过后继续学习', 'Learners continue after passing') }
 	];
 	const currentModule = $derived(modules.find((m) => m.sections.some((s) => s.id === section.id)) ?? modules[0]);
-	const currentModuleTitle = $derived(currentModule?.title ?? '当前模块');
+	const currentModuleTitle = $derived(currentModule?.title ?? tx('当前模块', 'Current module'));
 	const insertPosition = $derived(posFrom(insertTarget));
 
 	async function refresh(): Promise<void> {
@@ -92,7 +102,7 @@
 	async function saveMetaNow(): Promise<void> {
 		await call(
 			'/api/editor/section',
-			{ id: section.id, title: title.trim() || '未命名章节', minDwellMs: Math.max(0, minDwellSec) * 1000 },
+			{ id: section.id, title: title.trim() || tx('未命名章节', 'Untitled section'), minDwellMs: Math.max(0, minDwellSec) * 1000 },
 			'PATCH'
 		);
 		saveStatus = 'saved';
@@ -132,7 +142,7 @@
 		}
 	}
 
-	function showToast(msg: string, undo?: () => void, actionLabel = '撤销'): void {
+	function showToast(msg: string, undo?: () => void, actionLabel = tx('撤销', 'Undo')): void {
 		if (toastTimer) clearTimeout(toastTimer);
 		toast = { msg, undo, actionLabel };
 		toastTimer = setTimeout(() => (toast = null), 6000);
@@ -145,7 +155,7 @@
 		try {
 			await call('/api/editor/block', { id: block.id }, 'DELETE');
 			await refresh();
-			showToast('已删除内容块', async () => {
+			showToast(tx('已删除内容块', 'Content block deleted'), async () => {
 				const prev = section.blocks[index - 1];
 				const at: Pos = index <= 0 ? 'start' : prev ? { afterId: prev.id } : 'end';
 				await createBlock(snapshot, at);
@@ -198,12 +208,12 @@
 		clearTransientEditingState();
 		const moduleId = currentModule?.id;
 		if (!moduleId) {
-			showToast('请先创建模块');
+			showToast(tx('请先创建模块', 'Create a module first'));
 			return;
 		}
 		const text = newSectionTitle.trim();
 		if (!text) {
-			showToast('请输入章节名称');
+			showToast(tx('请输入章节名称', 'Enter a section name'));
 			return;
 		}
 		structureBusy = true;
@@ -222,20 +232,20 @@
 		clearTransientEditingState();
 		const text = newModuleTitle.trim();
 		if (!text) {
-			showToast('请输入模块名称');
+			showToast(tx('请输入模块名称', 'Enter a module name'));
 			return;
 		}
 		structureBusy = true;
 		try {
 			const createdModule = await call('/api/editor/module', { title: text });
 			if (!createdModule?.ok || !createdModule.id) return;
-			const createdSection = await call('/api/editor/section', { moduleId: createdModule.id, title: '开始学习' });
+			const createdSection = await call('/api/editor/section', { moduleId: createdModule.id, title: tx('开始学习', 'Start here') });
 			newModuleTitle = '';
 			if (createdSection?.ok && createdSection.id) {
 				await goto(`/learn/${createdSection.id}`, { invalidateAll: true });
 			} else {
 				await refresh();
-				showToast('模块已创建，请在左侧继续添加章节');
+				showToast(tx('模块已创建，请在左侧继续添加章节', 'Module created. Add more sections from the sidebar.'));
 			}
 		} finally {
 			structureBusy = false;
@@ -244,7 +254,7 @@
 
 	// ---- Quizzes (authored inline as their own blocks) ----
 	const quizById = $derived(new Map(quizzes.map((q) => [q.id, q])));
-	const QUIZ_TYPE_LABEL: Record<string, string> = { single: '单选', multiple: '多选', boolean: '判断' };
+	const QUIZ_TYPE_LABEL: Record<string, () => string> = { single: () => tx('单选', 'Single'), multiple: () => tx('多选', 'Multiple'), boolean: () => tx('判断', 'True/False') };
 	function isCorrectOption(q: EditorQuiz, i: number): boolean {
 		if (q.type === 'single') return q.answer === i;
 		if (q.type === 'multiple') return Array.isArray(q.answer) && q.answer.includes(i);
@@ -304,14 +314,19 @@
 		input.value = '';
 		uploading = false;
 		if (r?.ok) await createBlock({ type: 'video', src: r.url, durationSec: Math.round(dur) }, 'end');
-		else showToast(`上传失败:${r?.error ?? '请检查视频文件后重试'}`);
+		else showToast(`${tx('上传失败', 'Upload failed')}:${r?.error ?? tx('请检查视频文件后重试', 'Check the video file and try again')}`);
 	}
 
 	// ---- AI ingestion → preview → choose insertion ----
 	interface IngestEvent {
 		t: number;
 		msg: string;
+		msgEn?: string;
 	}
+	type ApiError = { error?: string; errorEn?: string } | null;
+	const apiError = (payload: ApiError, fallbackZh: string, fallbackEn: string): string =>
+		i18n().lang === 'zh' ? (payload?.error ?? fallbackZh) : (payload?.errorEn ?? payload?.error ?? fallbackEn);
+	const eventText = (ev: IngestEvent): string => (i18n().lang === 'zh' ? ev.msg : (ev.msgEn ?? ev.msg));
 	let ingestBusy = $state(false);
 	let ingestStage = $state('pending');
 	let ingestStatus = $state('');
@@ -326,8 +341,12 @@
 	let inserting = $state(false);
 	let timer: ReturnType<typeof setInterval> | null = null;
 
-	const STAGE_LABEL: Record<string, string> = {
-		pending: '准备中', extracting: '提取文本', converting: 'AI 转译中', ready: '转译完成', error: '失败'
+	const STAGE_LABEL: Record<string, () => string> = {
+		pending: () => tx('准备中', 'Preparing'),
+		extracting: () => tx('提取文本', 'Extracting text'),
+		converting: () => tx('AI 转译中', 'AI translating'),
+		ready: () => tx('转译完成', 'Translation ready'),
+		error: () => tx('失败', 'Failed')
 	};
 	const STAGE_PCT: Record<string, number> = { pending: 8, extracting: 35, converting: 75, ready: 100, error: 100 };
 	const ingestPct = $derived(STAGE_PCT[ingestStage] ?? 0);
@@ -390,7 +409,7 @@
 	async function replaceDocumentContent(markdown: string): Promise<void> {
 		const md = markdown.trim();
 		if (!md) {
-			showToast('文档不能为空');
+			showToast(tx('文档不能为空', 'Document cannot be empty'));
 			return;
 		}
 		busy = true;
@@ -405,7 +424,7 @@
 				position: 'start'
 			});
 			await refresh();
-			showToast('整篇文档已保存');
+			showToast(tx('整篇文档已保存', 'Document saved'));
 		} finally {
 			busy = false;
 		}
@@ -422,7 +441,7 @@
 		if (!file) return;
 		ingestBusy = true;
 		ingestStage = 'pending';
-		ingestStatus = '上传中';
+		ingestStatus = tx('上传中', 'Uploading');
 		ingestEvents = [];
 		ingestTokens = 0;
 		ingestUsedAgent = false;
@@ -440,7 +459,7 @@
 			stopTimer();
 			ingestBusy = false;
 			ingestStage = 'error';
-			ingestStatus = '失败:' + (res?.error ?? '上传错误');
+			ingestStatus = tx('失败:', 'Failed:') + apiError(res, '上传错误', 'Upload error');
 			return;
 		}
 		const jobId: string = res.jobId;
@@ -450,11 +469,11 @@
 				stopTimer();
 				ingestBusy = false;
 				ingestStage = 'error';
-				ingestStatus = '转译任务丢失(服务可能重启过),请重新上传';
+				ingestStatus = tx('转译任务丢失(服务可能重启过),请重新上传', 'Translation job was lost. Please upload again.');
 				return;
 			}
 			ingestStage = s.status;
-			ingestStatus = STAGE_LABEL[s.status] ?? s.status;
+			ingestStatus = STAGE_LABEL[s.status]?.() ?? s.status;
 			ingestUsedAgent = !!s.usedAgent;
 			if (typeof s.tokens === 'number') ingestTokens = s.tokens;
 			if (Array.isArray(s.events)) ingestEvents = s.events;
@@ -469,7 +488,7 @@
 			if (s.status === 'error') {
 				stopTimer();
 				ingestBusy = false;
-				ingestStatus = '失败:' + (s.error ?? '转译失败');
+				ingestStatus = tx('失败:', 'Failed:') + apiError(s, '转译失败', 'Translation failed');
 				return;
 			}
 			setTimeout(poll, 1000);
@@ -516,26 +535,26 @@
 		<div class="bar-left">
 			<button class="mode-pill" class:preview onclick={() => (preview = !preview)}>
 				<span class="dot" class:on={!preview}></span>
-				{preview ? '学员预览' : '编辑模式'}
+				{preview ? tx('学员预览', 'Learner preview') : tx('编辑模式', 'Edit mode')}
 			</button>
-			<input class="title-input" bind:value={title} oninput={scheduleMetaSave} aria-label="章节标题" />
-			<label class="dwell">最短阅读
-				<input type="number" min="0" bind:value={minDwellSec} oninput={scheduleMetaSave} /> 秒
+			<input class="title-input" bind:value={title} oninput={scheduleMetaSave} aria-label={tx('章节标题', 'Section title')} />
+			<label class="dwell">{tx('最短阅读', 'Min read')}
+				<input type="number" min="0" bind:value={minDwellSec} oninput={scheduleMetaSave} /> {tx('秒', 'sec')}
 			</label>
 			<span class="save-status" class:saving={saveStatus === 'saving'}>
-				{#if saveStatus === 'saving'}保存中…{:else if saveStatus === 'saved'}已保存 <Icon name="check" size={13} stroke={2.5} />{/if}
+				{#if saveStatus === 'saving'}{tx('保存中…', 'Saving...')}{:else if saveStatus === 'saved'}{tx('已保存', 'Saved')} <Icon name="check" size={13} stroke={2.5} />{/if}
 			</span>
 		</div>
 		<div class="bar-right">
 			<a class="btn-sm ghost preview-link" href={`/learn/${section.id}?view=learner`}>
-				<Icon name="graduation-cap" size={15} /> 真实学生视图
+				<Icon name="graduation-cap" size={15} /> {tx('真实学生视图', 'Live learner view')}
 			</a>
 			<label class="btn-sm ghost upload ai-upload" class:busy={ingestBusy}>
-				{#if ingestBusy}AI 转译中…{:else}<Icon name="sparkles" size={15} /> AI 转译文件{/if}
+				{#if ingestBusy}{tx('AI 转译中…', 'AI translating...')}{:else}<Icon name="sparkles" size={15} /> {tx('AI 转译文件', 'AI translate file')}{/if}
 				<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 			</label>
 			<label class="btn-sm ghost upload video-upload" class:busy={uploading}>
-				{#if uploading}上传中…{:else}<Icon name="video" size={15} /> 上传视频{/if}
+				{#if uploading}{tx('上传中…', 'Uploading...')}{:else}<Icon name="video" size={15} /> {tx('上传视频', 'Upload video')}{/if}
 				<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
 			</label>
 		</div>
@@ -548,7 +567,7 @@
 				<span class="right">
 					<span class="mono">{ingestElapsed}s{ingestTokens ? ` · ${ingestTokens} tok` : ''}</span>
 					{#if ingestEvents.length}
-						<button class="link" onclick={() => (showLog = !showLog)}>{showLog ? '隐藏详情' : '查看详情'}</button>
+						<button class="link" onclick={() => (showLog = !showLog)}>{showLog ? tx('隐藏详情', 'Hide details') : tx('查看详情', 'View details')}</button>
 					{/if}
 				</span>
 			</div>
@@ -564,7 +583,7 @@
 			{/if}
 			{#if showLog && ingestEvents.length}
 				<ul class="log">
-					{#each ingestEvents as ev, evi (evi)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>{/each}
+					{#each ingestEvents as ev, evi (evi)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {eventText(ev)}</li>{/each}
 				</ul>
 			{/if}
 		</div>
@@ -572,7 +591,7 @@
 
 	<div class="canvas" class:editing={!preview}>
 		<article class="content">
-			<p class="eyebrow"><span class="dot"></span>{section.title || '未命名章节'}</p>
+			<p class="eyebrow"><span class="dot"></span>{section.title || tx('未命名章节', 'Untitled section')}</p>
 
 			{#if preview}
 				{#each section.blocks as block (block.id)}
@@ -580,14 +599,14 @@
 						<BlockRenderer {block} quizzes={section.quizzes} sectionId={section.id} onintervals={noop} onpassed={noop} />
 					{/if}
 				{/each}
-				{#if section.blocks.length === 0}<p class="muted">本节暂无内容。</p>{/if}
+				{#if section.blocks.length === 0}<p class="muted">{tx('本节暂无内容。', 'This section has no content yet.')}</p>{/if}
 			{:else}
 				<div class="word-shell">
 					{#key documentEditorKey}
 						<LazyRichTextEditor
 							initial={documentMarkdown}
 							onsave={replaceDocumentContent}
-							oncancel={() => showToast('继续编辑中，未做更改')}
+							oncancel={() => showToast(tx('继续编辑中，未做更改', 'Still editing. No changes saved.'))}
 						/>
 					{/key}
 				</div>
@@ -595,17 +614,17 @@
 				{#if section.blocks.length === 0 && !pending}
 					<div class="empty">
 						<div class="empty-icon"><Icon name="square-pen" size={24} /></div>
-						<h3>开始创建本节内容</h3>
-						<p>添加标题、正文、列表、视频或题目;也可以上传文档让 AI 转译成章节。</p>
+						<h3>{tx('开始创建本节内容', 'Start building this section')}</h3>
+						<p>{tx('添加标题、正文、列表、视频或题目;也可以上传文档让 AI 转译成章节。', 'Add headings, body text, lists, video, or quizzes. You can also upload a document for AI translation.')}</p>
 						<div class="empty-actions">
 							<div class="menu-anchor">
-								<button class="btn primary" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}><Icon name="plus" size={16} /> 添加内容块</button>
+								<button class="btn primary" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}><Icon name="plus" size={16} /> {tx('添加内容块', 'Add block')}</button>
 								{#if menuAt === 'start'}
 									<BlockMenu onpick={(t) => pickType('start', t)} onclose={() => (menuAt = null)} />
 								{/if}
 							</div>
 							<label class="btn ghost upload" class:busy={ingestBusy}>
-								<Icon name="sparkles" size={16} /> AI 转译文件
+								<Icon name="sparkles" size={16} /> {tx('AI 转译文件', 'AI translate file')}
 								<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 							</label>
 						</div>
@@ -637,18 +656,18 @@
 					>
 						<div class="gutter left">
 							<div class="menu-anchor">
-								<button class="g-btn add" title="在此后添加" aria-label="在此处下方添加内容块" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
+								<button class="g-btn add" title={tx('在此后添加', 'Add after this block')} aria-label={tx('在此处下方添加内容块', 'Add a content block below this position')} onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
 								{#if menuAt === block.id}
 									<BlockMenu onpick={(t) => pickType(block.id, t)} onclose={() => (menuAt = null)} />
 								{/if}
 							</div>
 							<button
 								class="g-btn handle"
-								title="拖动排序"
+								title={tx('拖动排序', 'Drag to reorder')}
 								draggable="true"
 								ondragstart={(e) => { dragId = block.id; e.dataTransfer?.setData('text/plain', block.id); }}
 								ondragend={() => { dragId = null; overId = null; }}
-								aria-label="拖动排序"
+								aria-label={tx('拖动排序', 'Drag to reorder')}
 							>⠿</button>
 						</div>
 
@@ -669,7 +688,7 @@
 								{#if q}
 									<div class="quiz-card">
 										<div class="qc-head">
-											<span class="q-badge">{QUIZ_TYPE_LABEL[q.type]}</span>
+											<span class="q-badge">{QUIZ_TYPE_LABEL[q.type]?.() ?? q.type}</span>
 											<p class="qc-q">{q.question}</p>
 										</div>
 										<ul class="qc-opts">
@@ -682,7 +701,7 @@
 										</ul>
 									</div>
 								{:else}
-									<div class="quiz-ph"><Icon name="file-text" size={16} />题目数据缺失</div>
+									<div class="quiz-ph"><Icon name="file-text" size={16} />{tx('题目数据缺失', 'Quiz data missing')}</div>
 								{/if}
 							{:else}
 								<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />
@@ -690,9 +709,9 @@
 						</div>
 
 						<div class="gutter right">
-							<span class="badge">{TYPE_LABEL[block.type]}</span>
-							<button class="block-action" title="编辑" aria-label="编辑内容块" onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /> 编辑</button>
-							<button class="block-action danger" title="删除" aria-label="删除内容块" onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /> 删除</button>
+							<span class="badge">{typeLabel(block.type)}</span>
+							<button class="block-action" title={tx('编辑', 'Edit')} aria-label={tx('编辑内容块', 'Edit content block')} onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /> {tx('编辑', 'Edit')}</button>
+							<button class="block-action danger" title={tx('删除', 'Delete')} aria-label={tx('删除内容块', 'Delete content block')} onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /> {tx('删除', 'Delete')}</button>
 						</div>
 
 						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
@@ -711,7 +730,7 @@
 
 				{#if section.blocks.length > 0}
 					<div class="add-end menu-anchor">
-						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}><Icon name="plus" size={16} /> 添加内容块</button>
+						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}><Icon name="plus" size={16} /> {tx('添加内容块', 'Add block')}</button>
 						{#if menuAt === 'end'}
 							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
 						{/if}
@@ -732,33 +751,33 @@
 		</article>
 
 		{#if !preview}
-			<aside class="sidepanel" aria-label="创建与插入">
+			<aside class="sidepanel" aria-label={tx('创建与插入', 'Create and insert')}>
 				<section class="panel-card hero-panel">
-					<div class="panel-kicker"><Icon name="panel-right" size={15} /> 编辑工作台</div>
-					<h2>创建与插入</h2>
-					<p>正文像文档一样编辑；章节、模块和结构化内容都从这里添加。</p>
+					<div class="panel-kicker"><Icon name="panel-right" size={15} /> {tx('编辑工作台', 'Editor workspace')}</div>
+					<h2>{tx('创建与插入', 'Create and insert')}</h2>
+					<p>{tx('正文像文档一样编辑；章节、模块和结构化内容都从这里添加。', 'Edit body text like a document. Add sections, modules, and structured content here.')}</p>
 				</section>
 
 				<section class="panel-card">
 					<div class="panel-head">
 						<span class="panel-index">01</span>
 						<div>
-							<h3>课程结构</h3>
-							<p>当前模块：{currentModuleTitle}</p>
+							<h3>{tx('课程结构', 'Course structure')}</h3>
+							<p>{tx('当前模块：', 'Current module: ')}{currentModuleTitle}</p>
 						</div>
 					</div>
 					<label class="field">
-						<span>新章节</span>
+						<span>{tx('新章节', 'New section')}</span>
 						<div class="inline-create">
-							<input bind:value={newSectionTitle} placeholder="例如：安全合规测验" onkeydown={(e) => { if (e.key === 'Enter') createSectionInCurrentModule(); }} />
-							<button class="icon-action primary" aria-label="创建新章节" title="创建新章节" onclick={createSectionInCurrentModule} disabled={structureBusy}><Icon name="plus" size={16} /></button>
+							<input bind:value={newSectionTitle} placeholder={tx('例如：安全合规测验', 'Example: Security compliance quiz')} onkeydown={(e) => { if (e.key === 'Enter') createSectionInCurrentModule(); }} />
+							<button class="icon-action primary" aria-label={tx('创建新章节', 'Create new section')} title={tx('创建新章节', 'Create new section')} onclick={createSectionInCurrentModule} disabled={structureBusy}><Icon name="plus" size={16} /></button>
 						</div>
 					</label>
 					<label class="field">
-						<span>新模块</span>
+						<span>{tx('新模块', 'New module')}</span>
 						<div class="inline-create">
-							<input bind:value={newModuleTitle} placeholder="例如：XJMK" onkeydown={(e) => { if (e.key === 'Enter') createModuleWithFirstSection(); }} />
-							<button class="icon-action" aria-label="创建新模块" title="创建新模块" onclick={createModuleWithFirstSection} disabled={structureBusy}><Icon name="layers" size={16} /></button>
+							<input bind:value={newModuleTitle} placeholder={tx('例如：XJMK', 'Example: XJMK')} onkeydown={(e) => { if (e.key === 'Enter') createModuleWithFirstSection(); }} />
+							<button class="icon-action" aria-label={tx('创建新模块', 'Create new module')} title={tx('创建新模块', 'Create new module')} onclick={createModuleWithFirstSection} disabled={structureBusy}><Icon name="layers" size={16} /></button>
 						</div>
 					</label>
 				</section>
@@ -767,18 +786,18 @@
 					<div class="panel-head">
 						<span class="panel-index">02</span>
 						<div>
-							<h3>插入模块</h3>
-							<p>{section.blocks.length} 个内容块，可选择插入位置</p>
+							<h3>{tx('插入模块', 'Insert module')}</h3>
+							<p>{tx(`${section.blocks.length} 个内容块，可选择插入位置`, `${section.blocks.length} content blocks. Choose an insertion point`)}</p>
 						</div>
 					</div>
 					<label class="field">
-						<span>插入位置</span>
+						<span>{tx('插入位置', 'Insertion point')}</span>
 						<select bind:value={insertTarget}>
-							<option value="start">章节开头</option>
+							<option value="start">{tx('章节开头', 'Section start')}</option>
 							{#each section.blocks as b, i (b.id)}
-								<option value={b.id}>第 {i + 1} 块之后 · {TYPE_LABEL[b.type]}</option>
+								<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>
 							{/each}
-							<option value="end">章节末尾</option>
+							<option value="end">{tx('章节末尾', 'Section end')}</option>
 						</select>
 					</label>
 					<div class="module-grid">
@@ -786,8 +805,8 @@
 							<button class="module-tile" class:active={pending?.type === t.type} onclick={() => pickSideType(t.type)}>
 								<span class="tile-icon"><Icon name={t.icon} size={18} /></span>
 								<span>
-									<strong>{t.label}</strong>
-									<small>{t.desc}</small>
+									<strong>{t.label()}</strong>
+									<small>{t.desc()}</small>
 								</span>
 							</button>
 						{/each}
@@ -799,8 +818,8 @@
 						<div class="panel-head">
 							<span class="panel-index">03</span>
 							<div>
-								<h3>{TYPE_LABEL[pending.type]}设置</h3>
-								<p>保存后插入到所选位置</p>
+								<h3>{tx(`${typeLabel(pending.type)}设置`, `${typeLabel(pending.type)} settings`)}</h3>
+								<p>{tx('保存后插入到所选位置', 'Saved content will be inserted at the selected position')}</p>
 							</div>
 						</div>
 						{#if pending.type === 'richtext'}
@@ -816,16 +835,16 @@
 						<div class="panel-head">
 							<span class="panel-index">03</span>
 							<div>
-								<h3>导入素材</h3>
-								<p>AI 转译或视频上传后会进入当前章节</p>
+								<h3>{tx('导入素材', 'Import assets')}</h3>
+								<p>{tx('AI 转译或视频上传后会进入当前章节', 'AI translations or uploaded videos will be added to the current section')}</p>
 							</div>
 						</div>
 						<label class="wide-action" class:busy={ingestBusy}>
-							<Icon name="sparkles" size={16} /> {ingestBusy ? 'AI 转译中…' : 'AI 转译 PDF / PPTX / Word'}
+							<Icon name="sparkles" size={16} /> {ingestBusy ? tx('AI 转译中…', 'AI translating...') : tx('AI 转译 PDF / PPTX / Word', 'AI translate PDF / PPTX / Word')}
 							<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 						</label>
 						<label class="wide-action" class:busy={uploading}>
-							<Icon name="video" size={16} /> {uploading ? '上传中…' : '上传视频'}
+							<Icon name="video" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('上传视频', 'Upload video')}
 							<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
 						</label>
 					</section>
@@ -843,35 +862,35 @@
 </div>
 
 {#if showPreview}
-	<div class="modal-bg" transition:fade={{ duration: 200 }}><div class="modal" role="dialog" aria-modal="true" aria-label="AI 转译预览" tabindex="-1" in:scale={{ start: 0.96, opacity: 0, duration: 320, easing: cubicOut }} out:scale={{ start: 0.98, opacity: 0, duration: 180 }}>
+	<div class="modal-bg" transition:fade={{ duration: 200 }}><div class="modal" role="dialog" aria-modal="true" aria-label={tx('AI 转译预览', 'AI translation preview')} tabindex="-1" in:scale={{ start: 0.96, opacity: 0, duration: 320, easing: cubicOut }} out:scale={{ start: 0.98, opacity: 0, duration: 180 }}>
 		<header class="modal-head">
-			<strong>AI 转译预览 · {previewBlocks.length} 块</strong>
-			<span class="badge">{ingestUsedAgent ? `qwen3.7-plus · ${ingestTokens} tokens` : '本地解析'}</span>
+			<strong>{tx(`AI 转译预览 · ${previewBlocks.length} 块`, `AI translation preview · ${previewBlocks.length} blocks`)}</strong>
+			<span class="badge">{ingestUsedAgent ? `qwen3.7-plus · ${ingestTokens} tokens` : tx('本地解析', 'Local parser')}</span>
 		</header>
 		<div class="modal-body">
 			<div class="preview-pane">
-				{#if previewRender.length === 0}<p class="hint">没有可用内容。</p>{/if}
+				{#if previewRender.length === 0}<p class="hint">{tx('没有可用内容。', 'No usable content.')}</p>{/if}
 				{#each previewRender as block (block.id)}
-					{#if block.type === 'quiz'}<div class="quiz-ph"><Icon name="file-text" size={16} />题目区</div>
+					{#if block.type === 'quiz'}<div class="quiz-ph"><Icon name="file-text" size={16} />{tx('题目区', 'Quiz area')}</div>
 					{:else}<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />{/if}
 				{/each}
 			</div>
 			<aside class="log-pane">
-				<div class="rail-label">事件日志</div>
-				<ul class="log">{#each ingestEvents as ev, evi (evi)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {ev.msg}</li>{/each}</ul>
+				<div class="rail-label">{tx('事件日志', 'Event log')}</div>
+				<ul class="log">{#each ingestEvents as ev, evi (evi)}<li><span class="mono">+{(ev.t / 1000).toFixed(1)}s</span> {eventText(ev)}</li>{/each}</ul>
 			</aside>
 		</div>
 		<footer class="modal-foot">
-			<label class="pos">插入位置
+			<label class="pos">{tx('插入位置', 'Insertion point')}
 				<select bind:value={insertPos}>
-					<option value="start">章节开头</option>
-					{#each section.blocks as b, i (b.id)}<option value={b.id}>第 {i + 1} 块之后 · {TYPE_LABEL[b.type]}</option>{/each}
-					<option value="end">章节末尾</option>
+					<option value="start">{tx('章节开头', 'Section start')}</option>
+					{#each section.blocks as b, i (b.id)}<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>{/each}
+					<option value="end">{tx('章节末尾', 'Section end')}</option>
 				</select>
 			</label>
 			<div class="spacer"></div>
-			<button class="btn-sm ghost" onclick={cancelPreview} disabled={inserting}>取消</button>
-			<button class="btn-sm primary" onclick={confirmInsert} disabled={inserting}>{inserting ? '插入中…' : `确认插入(${previewBlocks.length} 块)`}</button>
+			<button class="btn-sm ghost" onclick={cancelPreview} disabled={inserting}>{tx('取消', 'Cancel')}</button>
+			<button class="btn-sm primary" onclick={confirmInsert} disabled={inserting}>{inserting ? tx('插入中…', 'Inserting...') : tx(`确认插入(${previewBlocks.length} 块)`, `Insert ${previewBlocks.length} blocks`)}</button>
 		</footer>
 	</div></div>
 {/if}

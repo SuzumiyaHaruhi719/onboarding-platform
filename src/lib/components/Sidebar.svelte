@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import type { ModuleWithSections } from '$lib/db/queries';
 	import Icon from '$lib/components/Icon.svelte';
+	import { useI18n } from '$lib/i18n/context';
 
 	let {
 		modules,
@@ -15,6 +16,9 @@
 		orderedIds: string[];
 		editable?: boolean;
 	} = $props();
+
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	let creatingModule = $state(false);
 	let moduleTitle = $state('');
@@ -39,12 +43,12 @@
 				body: JSON.stringify(body)
 			});
 			if (!res.ok) {
-				notice = '创建失败，请稍后重试';
+				notice = tx('创建失败，请稍后重试', 'Create failed. Please try again.');
 				return null;
 			}
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			notice = '网络异常，创建失败';
+			notice = tx('网络异常，创建失败', 'Network error. Create failed.');
 			return null;
 		} finally {
 			busy = false;
@@ -57,11 +61,11 @@
 		const created = await post('/api/editor/module', { title });
 		const moduleId = typeof created?.id === 'string' ? created.id : null;
 		if (!moduleId) return;
-		const section = await post('/api/editor/section', { moduleId, title: '开始学习' });
+		const section = await post('/api/editor/section', { moduleId, title: tx('开始学习', 'Start here') });
 		const sectionId = typeof section?.id === 'string' ? section.id : null;
 		moduleTitle = '';
 		creatingModule = false;
-		notice = '模块已创建';
+		notice = tx('模块已创建', 'Module created');
 		if (sectionId) await goto(`/learn/${sectionId}`, { invalidateAll: true });
 		else await invalidateAll();
 	}
@@ -73,7 +77,7 @@
 		const sectionId = typeof created?.id === 'string' ? created.id : null;
 		sectionTitles = { ...sectionTitles, [moduleId]: '' };
 		creatingSectionFor = null;
-		notice = '章节已创建';
+		notice = tx('章节已创建', 'Section created');
 		if (sectionId) await goto(`/learn/${sectionId}`, { invalidateAll: true });
 		else await invalidateAll();
 	}
@@ -81,36 +85,36 @@
 
 <aside class="sidebar" class:editable>
 	{#if editable}
-		<div class="structure-tools" aria-label="课程结构管理">
+		<div class="structure-tools" aria-label={tx('课程结构管理', 'Course structure management')}>
 			<div>
-				<p class="tools-kicker">编辑结构</p>
-				<strong>课程目录</strong>
+				<p class="tools-kicker">{tx('编辑结构', 'Structure')}</p>
+				<strong>{tx('课程目录', 'Course outline')}</strong>
 			</div>
 			<button
 				class="tool-add"
-				aria-label="创建新模块"
-				title="创建新模块"
+				aria-label={tx('创建新模块', 'Create module')}
+				title={tx('创建新模块', 'Create module')}
 				onclick={() => {
 					creatingModule = !creatingModule;
 					creatingSectionFor = null;
 				}}
 			>
 				<Icon name="layers" size={15} />
-				<span>新模块</span>
+				<span>{tx('新模块', 'Module')}</span>
 			</button>
 		</div>
 		{#if creatingModule}
 			<div class="create-row">
 				<input
 					bind:value={moduleTitle}
-					placeholder="模块名称"
-					aria-label="模块名称"
+					placeholder={tx('模块名称', 'Module name')}
+					aria-label={tx('模块名称', 'Module name')}
 					onkeydown={(e) => {
 						if (e.key === 'Enter') createModule();
 						if (e.key === 'Escape') creatingModule = false;
 					}}
 				/>
-				<button class="confirm" aria-label="确认创建模块" disabled={busy || !moduleTitle.trim()} onclick={createModule}>
+				<button class="confirm" aria-label={tx('确认创建模块', 'Confirm module')} disabled={busy || !moduleTitle.trim()} onclick={createModule}>
 					<Icon name="plus" size={15} />
 				</button>
 			</div>
@@ -123,15 +127,15 @@
 			{#if editable}
 				<button
 					class="mini-add"
-					aria-label={`在${m.title}中创建新章节`}
-					title="创建新章节"
+					aria-label={tx(`在${m.title}中创建新章节`, `Create section in ${m.title}`)}
+					title={tx('创建新章节', 'Create section')}
 					onclick={() => {
 						creatingSectionFor = creatingSectionFor === m.id ? null : m.id;
 						creatingModule = false;
 					}}
 				>
 					<Icon name="plus" size={14} />
-					<span>章节</span>
+					<span>{tx('章节', 'Section')}</span>
 				</button>
 			{/if}
 		</div>
@@ -139,15 +143,15 @@
 			<div class="create-row section-create">
 				<input
 					value={sectionTitles[m.id] ?? ''}
-					placeholder="章节名称"
-					aria-label={`${m.title}的新章节名称`}
+					placeholder={tx('章节名称', 'Section name')}
+					aria-label={tx(`${m.title}的新章节名称`, `New section name for ${m.title}`)}
 					oninput={(e) => (sectionTitles = { ...sectionTitles, [m.id]: e.currentTarget.value })}
 					onkeydown={(e) => {
 						if (e.key === 'Enter') createSection(m.id);
 						if (e.key === 'Escape') creatingSectionFor = null;
 					}}
 				/>
-				<button class="confirm" aria-label="确认创建章节" disabled={busy || !(sectionTitles[m.id] ?? '').trim()} onclick={() => createSection(m.id)}>
+				<button class="confirm" aria-label={tx('确认创建章节', 'Confirm section')} disabled={busy || !(sectionTitles[m.id] ?? '').trim()} onclick={() => createSection(m.id)}>
 					<Icon name="plus" size={15} />
 				</button>
 			</div>

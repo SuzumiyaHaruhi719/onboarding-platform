@@ -10,13 +10,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const form = await request.formData().catch(() => null);
 	const file = form?.get('file');
 	if (!(file instanceof File)) {
-		return json({ ok: false, error: '缺少文件' }, { status: 400 });
+		return json({ ok: false, error: '缺少文件', errorEn: 'Missing file' }, { status: 400 });
 	}
 	if (!isSupported(file.name)) {
-		return json({ ok: false, error: '不支持的文件类型(支持 txt/md/docx/pdf/pptx)' }, { status: 400 });
+		return json({ ok: false, error: '不支持的文件类型(支持 txt/md/docx/pdf/pptx)', errorEn: 'Unsupported file type (txt/md/docx/pdf/pptx supported)' }, { status: 400 });
 	}
 	if (file.size > MAX_DOC_BYTES) {
-		return json({ ok: false, error: '文件过大' }, { status: 413 });
+		return json({ ok: false, error: '文件过大', errorEn: 'File is too large' }, { status: 413 });
 	}
 	const buf = Buffer.from(await file.arrayBuffer());
 	const jobId = startIngestion(file.name, buf);
@@ -35,6 +35,7 @@ export const GET: RequestHandler = ({ url, locals }) => {
 		durationMs: job.durationMs,
 		events: job.events,
 		blocks: job.blocks,
-		error: job.error
+		error: job.error,
+		errorEn: job.errorEn
 	});
 };

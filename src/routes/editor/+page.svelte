@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import Icon from '$lib/components/Icon.svelte';
+	import { useI18n } from '$lib/i18n/context';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	let newModuleTitle = $state('');
 	let newSectionTitle = $state<Record<string, string>>({});
@@ -36,13 +39,13 @@
 			});
 			const payload = await response.json().catch(() => null);
 			if (!response.ok || !payload?.ok) {
-				notice = { type: 'error', text: '操作失败,请检查内容后重试。' };
+				notice = { type: 'error', text: tx('操作失败，请检查内容后重试。', 'Action failed. Check the content and try again.') };
 				return null;
 			}
 			await invalidateAll();
 			return payload;
 		} catch {
-			notice = { type: 'error', text: '网络或服务异常,请稍后重试。' };
+			notice = { type: 'error', text: tx('网络或服务异常，请稍后重试。', 'Network or service error. Please try again later.') };
 			return null;
 		} finally {
 			busy = false;
@@ -55,7 +58,7 @@
 		const created = await post('/api/editor/module', { title });
 		if (created?.ok) {
 			newModuleTitle = '';
-			notice = { type: 'success', text: '模块已创建。' };
+			notice = { type: 'success', text: tx('模块已创建。', 'Module created.') };
 		}
 	}
 
@@ -65,7 +68,7 @@
 		const created = await post('/api/editor/section', { moduleId, title });
 		if (created?.ok) {
 			newSectionTitle[moduleId] = '';
-			notice = { type: 'success', text: '章节已创建,现在可以进入编辑。' };
+			notice = { type: 'success', text: tx('章节已创建，现在可以进入编辑。', 'Section created. You can edit it now.') };
 		}
 	}
 
@@ -84,60 +87,60 @@
 		deleting = null;
 		const url = target.kind === 'module' ? '/api/editor/module' : '/api/editor/section';
 		const deleted = await post(url, { id: target.id }, 'DELETE');
-		if (deleted?.ok) notice = { type: 'success', text: target.kind === 'module' ? '模块已删除。' : '章节已删除。' };
+		if (deleted?.ok) notice = { type: 'success', text: target.kind === 'module' ? tx('模块已删除。', 'Module deleted.') : tx('章节已删除。', 'Section deleted.') };
 	}
 </script>
 
 <div class="wrap">
 	<header class="head">
 		<div>
-			<p class="eyebrow"><span class="dot"></span>编辑者工作区</p>
-			<h1>课程控制台</h1>
-			<p class="sub">组织模块和章节,进入内联编辑器,再用真实学生视图检查学习路径。</p>
+			<p class="eyebrow"><span class="dot"></span>{tx('编辑者工作区', 'Editor workspace')}</p>
+			<h1>{tx('课程控制台', 'Course console')}</h1>
+			<p class="sub">{tx('组织模块和章节，进入内联编辑器，再用真实学生视图检查学习路径。', 'Organize modules and sections, edit inline, then verify the learning path in the live learner view.')}</p>
 		</div>
 		<div class="head-actions">
 			<a class="btn-secondary" href="/learn?view=learner">
-				<Icon name="graduation-cap" size={15} /> 学生视图
+				<Icon name="graduation-cap" size={15} /> {tx('学生视图', 'Learner view')}
 			</a>
 			<a class="btn-primary" href={data.modules[0]?.sections[0] ? `/learn/${data.modules[0].sections[0].id}` : '#new-module'}>
-				<Icon name="square-pen" size={15} /> 进入编辑器
+				<Icon name="square-pen" size={15} /> {tx('进入编辑器', 'Open editor')}
 			</a>
 		</div>
 	</header>
 
-	<section class="stats" aria-label="课程统计">
+	<section class="stats" aria-label={tx('课程统计', 'Course statistics')}>
 		<div class="stat">
 			<span class="stat-num">{moduleCount}</span>
-			<span class="stat-label">模块</span>
+			<span class="stat-label">{tx('模块', 'Modules')}</span>
 		</div>
 		<div class="stat">
 			<span class="stat-num">{sectionCount}</span>
-			<span class="stat-label">章节</span>
+			<span class="stat-label">{tx('章节', 'Sections')}</span>
 		</div>
 		<div class="stat">
 			<span class="stat-num">{blockCount}</span>
-			<span class="stat-label">内容块</span>
+			<span class="stat-label">{tx('内容块', 'Blocks')}</span>
 		</div>
 		<div class="stat">
 			<span class="stat-num">{quizCount}</span>
-			<span class="stat-label">题目</span>
+			<span class="stat-label">{tx('题目', 'Quizzes')}</span>
 		</div>
 	</section>
 
 	<section class="creator" id="new-module">
 		<div>
-			<h2>新建模块</h2>
-			<p>模块用于承载一组按顺序解锁的入职章节。</p>
+			<h2>{tx('新建模块', 'Create module')}</h2>
+			<p>{tx('模块用于承载一组按顺序解锁的入职章节。', 'Modules contain onboarding sections that unlock in order.')}</p>
 		</div>
 		<div class="newmod">
 			<input
 				class="input"
-				placeholder="例如:合规与安全入门"
+				placeholder={tx('例如：合规与安全入门', 'Example: Compliance and safety basics')}
 				bind:value={newModuleTitle}
 				onkeydown={(e) => e.key === 'Enter' && addModule()}
 			/>
 			<button class="btn-primary" onclick={addModule} disabled={busy || !newModuleTitle.trim()}>
-				<Icon name="plus" size={15} /> 新建
+				<Icon name="plus" size={15} /> {tx('新建', 'Create')}
 			</button>
 		</div>
 	</section>
@@ -149,8 +152,8 @@
 	{#if data.modules.length === 0}
 		<section class="empty">
 			<div class="empty-icon"><Icon name="file-text" size={24} /></div>
-			<h2>还没有课程内容</h2>
-			<p>先创建第一个模块,再添加章节。每个章节都可以插入富文本、视频和题目。</p>
+			<h2>{tx('还没有课程内容', 'No course content yet')}</h2>
+			<p>{tx('先创建第一个模块，再添加章节。每个章节都可以插入富文本、视频和题目。', 'Create the first module, then add sections. Each section can contain rich text, video, and quizzes.')}</p>
 		</section>
 	{/if}
 
@@ -158,18 +161,18 @@
 		<section class="module">
 			<div class="module-head">
 				<div>
-					<p class="module-kicker">模块 {m.order + 1}</p>
+					<p class="module-kicker">{tx(`模块 ${m.order + 1}`, `Module ${m.order + 1}`)}</p>
 					<h2>{m.title}</h2>
 				</div>
 				<div class="module-actions">
-					<span class="module-count">{m.sections.length} 章节</span>
+					<span class="module-count">{tx(`${m.sections.length} 章节`, `${m.sections.length} sections`)}</span>
 					<button
 						class="btn-ghost danger"
 						onclick={() =>
-							requestDelete('module', m.id, m.title, `将同时删除 ${m.sections.length} 个章节及其全部内容。`)}
+							requestDelete('module', m.id, m.title, tx(`将同时删除 ${m.sections.length} 个章节及其全部内容。`, `This also deletes ${m.sections.length} sections and all of their content.`))}
 						disabled={busy}
 					>
-						<Icon name="trash-2" size={15} /> 删除模块
+						<Icon name="trash-2" size={15} /> {tx('删除模块', 'Delete module')}
 					</button>
 				</div>
 			</div>
@@ -177,7 +180,7 @@
 			{#if m.sections.length === 0}
 				<div class="module-empty">
 					<Icon name="file-text" size={18} />
-					<span>这个模块还没有章节。创建章节后即可进入编辑器。</span>
+					<span>{tx('这个模块还没有章节。创建章节后即可进入编辑器。', 'This module has no sections yet. Create a section to enter the editor.')}</span>
 				</div>
 			{:else}
 				<ul class="sections">
@@ -188,26 +191,26 @@
 								<span class="sec-copy">
 									<span class="sec-title">{s.title}</span>
 									<span class="sec-meta">
-										<span>{Math.round(s.minDwellMs / 1000)}s 最短阅读</span>
-										<span>{s.blockCount} 内容块</span>
-										<span>{s.quizCount} 题目</span>
+										<span>{tx(`${Math.round(s.minDwellMs / 1000)}s 最短阅读`, `${Math.round(s.minDwellMs / 1000)}s min read`)}</span>
+										<span>{tx(`${s.blockCount} 内容块`, `${s.blockCount} blocks`)}</span>
+										<span>{tx(`${s.quizCount} 题目`, `${s.quizCount} quizzes`)}</span>
 									</span>
 								</span>
 								<span class="sec-open"><Icon name="arrow-right" size={16} /></span>
 							</a>
 							<div class="row-actions">
-								<a class="icon-btn" href={`/learn/${s.id}`} aria-label={`编辑 ${s.title}`} title="编辑">
+								<a class="icon-btn" href={`/learn/${s.id}`} aria-label={tx(`编辑 ${s.title}`, `Edit ${s.title}`)} title={tx('编辑', 'Edit')}>
 									<Icon name="pencil" size={15} />
 								</a>
-								<a class="icon-btn" href={`/learn/${s.id}?view=learner`} aria-label={`学生视图 ${s.title}`} title="学生视图">
+								<a class="icon-btn" href={`/learn/${s.id}?view=learner`} aria-label={tx(`学生视图 ${s.title}`, `Learner view ${s.title}`)} title={tx('学生视图', 'Learner view')}>
 									<Icon name="graduation-cap" size={15} />
 								</a>
 								<button
 									class="icon-btn danger"
-									onclick={() => requestDelete('section', s.id, s.title, '将删除本章节的内容块、题目和学习进度。')}
+									onclick={() => requestDelete('section', s.id, s.title, tx('将删除本章节的内容块、题目和学习进度。', 'This deletes the section blocks, quizzes, and learning progress.'))}
 									disabled={busy}
-									aria-label={`删除 ${s.title}`}
-									title="删除"
+									aria-label={tx(`删除 ${s.title}`, `Delete ${s.title}`)}
+									title={tx('删除', 'Delete')}
 								>
 									<Icon name="trash-2" size={15} />
 								</button>
@@ -220,13 +223,13 @@
 			<div class="newsec">
 				<input
 					class="input"
-					placeholder="新章节标题,例如:第一天必读"
+					placeholder={tx('新章节标题，例如：第一天必读', 'New section title, e.g. Day one essentials')}
 					value={newSectionTitle[m.id] ?? ''}
 					oninput={(e) => (newSectionTitle[m.id] = e.currentTarget.value)}
 					onkeydown={(e) => e.key === 'Enter' && addSection(m.id)}
 				/>
 				<button class="btn-secondary" onclick={() => addSection(m.id)} disabled={busy || !(newSectionTitle[m.id] ?? '').trim()}>
-					<Icon name="plus" size={15} /> 新建章节
+					<Icon name="plus" size={15} /> {tx('新建章节', 'Create section')}
 				</button>
 			</div>
 		</section>
@@ -235,14 +238,14 @@
 
 {#if deleting}
 	<div class="dialog-bg" role="presentation">
-		<button class="dialog-scrim" aria-label="取消删除" onclick={() => (deleting = null)}></button>
-		<div class="dialog" role="dialog" aria-modal="true" aria-label="确认删除" tabindex="-1">
+		<button class="dialog-scrim" aria-label={tx('取消删除', 'Cancel delete')} onclick={() => (deleting = null)}></button>
+		<div class="dialog" role="dialog" aria-modal="true" aria-label={tx('确认删除', 'Confirm delete')} tabindex="-1">
 			<div class="dialog-icon"><Icon name="trash-2" size={20} /></div>
-			<h2>删除「{deleting.title}」?</h2>
+			<h2>{tx(`删除「${deleting.title}」？`, `Delete "${deleting.title}"?`)}</h2>
 			<p>{deleting.detail}</p>
 			<div class="dialog-actions">
-				<button class="btn-ghost" onclick={() => (deleting = null)}>取消</button>
-				<button class="btn-danger" onclick={confirmDelete} disabled={busy}>确认删除</button>
+				<button class="btn-ghost" onclick={() => (deleting = null)}>{tx('取消', 'Cancel')}</button>
+				<button class="btn-danger" onclick={confirmDelete} disabled={busy}>{tx('确认删除', 'Delete')}</button>
 			</div>
 		</div>
 	</div>

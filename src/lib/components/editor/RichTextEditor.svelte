@@ -4,6 +4,7 @@
 	import StarterKit from '@tiptap/starter-kit';
 	import { Markdown } from 'tiptap-markdown';
 	import Icon from '$lib/components/Icon.svelte';
+	import { useI18n } from '$lib/i18n/context';
 
 	let {
 		initial = '',
@@ -18,6 +19,8 @@
 	let linkOpen = $state(false);
 	let linkUrl = $state('');
 	const startMarkdown = untrack(() => initial);
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	onMount(() => {
 		editor = new Editor({
@@ -97,7 +100,7 @@
 		const storage = editor.storage as { markdown?: { getMarkdown: () => string } };
 		const md = storage.markdown?.getMarkdown() ?? '';
 		if (!md.trim()) {
-			err = '内容不能为空，请先输入文字';
+			err = tx('内容不能为空，请先输入文字', 'Content cannot be empty. Add some text first.');
 			return;
 		}
 		onsave(md);
@@ -113,56 +116,56 @@
 
 <svelte:window onkeydown={onWrapKeydown} />
 
-<div class="rte" role="region" aria-label="富文本编辑器">
-	<div class="ribbon" aria-label="富文本工具栏">
+<div class="rte" role="region" aria-label={tx('富文本编辑器', 'Rich text editor')}>
+	<div class="ribbon" aria-label={tx('富文本工具栏', 'Rich text toolbar')}>
 		<div class="ribbon-group">
-			<span class="group-label">历史</span>
+			<span class="group-label">{tx('历史', 'History')}</span>
 			<div class="button-row">
-				<button type="button" class="ico" title="撤销" aria-label="撤销" disabled={!can('undo')} onclick={() => chain().undo().run()}><Icon name="undo-2" size={16} /></button>
-				<button type="button" class="ico" title="重做" aria-label="重做" disabled={!can('redo')} onclick={() => chain().redo().run()}><Icon name="redo-2" size={16} /></button>
+				<button type="button" class="ico" title={tx('撤销', 'Undo')} aria-label={tx('撤销', 'Undo')} disabled={!can('undo')} onclick={() => chain().undo().run()}><Icon name="undo-2" size={16} /></button>
+				<button type="button" class="ico" title={tx('重做', 'Redo')} aria-label={tx('重做', 'Redo')} disabled={!can('redo')} onclick={() => chain().redo().run()}><Icon name="redo-2" size={16} /></button>
 			</div>
 		</div>
 		<div class="ribbon-group wide">
-			<span class="group-label">段落样式</span>
+			<span class="group-label">{tx('段落样式', 'Paragraph')}</span>
 			<div class="button-row segmented">
-				<button type="button" class:on={!active('heading')} onclick={setParagraph}>正文</button>
-				<button type="button" class:on={active('heading', { level: 2 })} onclick={() => chain().toggleHeading({ level: 2 }).run()}>标题</button>
-				<button type="button" class:on={active('heading', { level: 3 })} onclick={() => chain().toggleHeading({ level: 3 }).run()}>小标题</button>
+				<button type="button" class:on={!active('heading')} onclick={setParagraph}>{tx('正文', 'Body')}</button>
+				<button type="button" class:on={active('heading', { level: 2 })} onclick={() => chain().toggleHeading({ level: 2 }).run()}>{tx('标题', 'Heading')}</button>
+				<button type="button" class:on={active('heading', { level: 3 })} onclick={() => chain().toggleHeading({ level: 3 }).run()}>{tx('小标题', 'Subhead')}</button>
 			</div>
 		</div>
 		<div class="ribbon-group">
-			<span class="group-label">文字</span>
+			<span class="group-label">{tx('文字', 'Text')}</span>
 			<div class="button-row">
-				<button type="button" class="b" class:on={active('bold')} title="加粗" onclick={() => chain().toggleBold().run()}>B</button>
-				<button type="button" class="i" class:on={active('italic')} title="斜体" onclick={() => chain().toggleItalic().run()}>I</button>
-				<button type="button" class="s" class:on={active('strike')} title="删除线" onclick={() => chain().toggleStrike().run()}>S</button>
-				<button type="button" class="code" class:on={active('code')} title="行内代码" onclick={() => chain().toggleCode().run()}>{'</>'}</button>
+				<button type="button" class="b" class:on={active('bold')} title={tx('加粗', 'Bold')} onclick={() => chain().toggleBold().run()}>B</button>
+				<button type="button" class="i" class:on={active('italic')} title={tx('斜体', 'Italic')} onclick={() => chain().toggleItalic().run()}>I</button>
+				<button type="button" class="s" class:on={active('strike')} title={tx('删除线', 'Strikethrough')} onclick={() => chain().toggleStrike().run()}>S</button>
+				<button type="button" class="code" class:on={active('code')} title={tx('行内代码', 'Inline code')} onclick={() => chain().toggleCode().run()}>{'</>'}</button>
 			</div>
 		</div>
 		<div class="ribbon-group">
-			<span class="group-label">结构</span>
+			<span class="group-label">{tx('结构', 'Structure')}</span>
 			<div class="button-row">
-				<button type="button" class="ico" class:on={active('bulletList')} title="无序列表" aria-label="无序列表" onclick={() => chain().toggleBulletList().run()}><Icon name="list" size={16} /></button>
-				<button type="button" class="ico" class:on={active('orderedList')} title="有序列表" aria-label="有序列表" onclick={() => chain().toggleOrderedList().run()}><Icon name="list-ordered" size={16} /></button>
-				<button type="button" class="ico" class:on={active('blockquote')} title="引用" aria-label="引用" onclick={() => chain().toggleBlockquote().run()}><Icon name="text-quote" size={16} /></button>
-				<button type="button" class="ico" class:on={active('link')} title="链接" aria-label="链接" onclick={openLinkPanel}><Icon name="link" size={16} /></button>
+				<button type="button" class="ico" class:on={active('bulletList')} title={tx('无序列表', 'Bulleted list')} aria-label={tx('无序列表', 'Bulleted list')} onclick={() => chain().toggleBulletList().run()}><Icon name="list" size={16} /></button>
+				<button type="button" class="ico" class:on={active('orderedList')} title={tx('有序列表', 'Numbered list')} aria-label={tx('有序列表', 'Numbered list')} onclick={() => chain().toggleOrderedList().run()}><Icon name="list-ordered" size={16} /></button>
+				<button type="button" class="ico" class:on={active('blockquote')} title={tx('引用', 'Quote')} aria-label={tx('引用', 'Quote')} onclick={() => chain().toggleBlockquote().run()}><Icon name="text-quote" size={16} /></button>
+				<button type="button" class="ico" class:on={active('link')} title={tx('链接', 'Link')} aria-label={tx('链接', 'Link')} onclick={openLinkPanel}><Icon name="link" size={16} /></button>
 			</div>
 		</div>
 		<div class="ribbon-spacer"></div>
 		<div class="ribbon-save">
-			<button class="btn primary" onclick={save}>保存</button>
-			<button class="btn ghost" onclick={oncancel}>取消</button>
+			<button class="btn primary" onclick={save}>{tx('保存', 'Save')}</button>
+			<button class="btn ghost" onclick={oncancel}>{tx('取消', 'Cancel')}</button>
 		</div>
 	</div>
 
 	{#if linkOpen}
 		<div class="link-panel">
 			<label>
-				<span>链接 URL</span>
+				<span>{tx('链接 URL', 'Link URL')}</span>
 				<input type="url" placeholder="https://example.com" bind:value={linkUrl} onkeydown={onLinkKey} />
 			</label>
-			<button type="button" class="mini primary" onclick={applyLink}>应用</button>
-			<button type="button" class="mini" onclick={clearLink}>清除</button>
+			<button type="button" class="mini primary" onclick={applyLink}>{tx('应用', 'Apply')}</button>
+			<button type="button" class="mini" onclick={clearLink}>{tx('清除', 'Clear')}</button>
 		</div>
 	{/if}
 
@@ -174,7 +177,7 @@
 		{#if err}
 			<span class="err" role="alert">{err}</span>
 		{:else}
-			<span class="tip">像文档一样直接输入；支持粘贴 Word/PDF 文本、列表、标题、引用和 Ctrl/⌘+S 保存。</span>
+			<span class="tip">{tx('像文档一样直接输入；支持粘贴 Word/PDF 文本、列表、标题、引用和 Ctrl/⌘+S 保存。', 'Type directly like a document. Paste Word/PDF text, lists, headings, quotes, and save with Ctrl/Cmd+S.')}</span>
 		{/if}
 	</div>
 </div>

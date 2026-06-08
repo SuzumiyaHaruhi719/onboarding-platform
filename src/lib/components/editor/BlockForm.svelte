@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { Block, BlockInput } from '$lib/content/types';
+	import { useI18n } from '$lib/i18n/context';
 
 	let {
 		initial,
@@ -18,14 +19,16 @@
 	} = $props();
 
 	type BType = Exclude<BlockInput['type'], 'richtext'>;
-	const TYPES: { value: BType; label: string; icon: string; desc: string }[] = [
-		{ value: 'heading', label: '小标题', icon: 'file-text', desc: '分隔一个主题' },
-		{ value: 'paragraph', label: '短正文', icon: 'file-text', desc: '单段说明文字' },
-		{ value: 'list', label: '清单', icon: 'list', desc: '步骤、规则、材料' },
-		{ value: 'quote', label: '引用', icon: 'text-quote', desc: '制度原文或引语' },
-		{ value: 'callout', label: '提示框', icon: 'info', desc: '重点、警告、结论' },
-		{ value: 'image', label: '图片', icon: 'image', desc: '配图和图注' },
-		{ value: 'video', label: '视频', icon: 'video', desc: '视频地址和时长' }
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
+	const TYPES: { value: BType; label: () => string; icon: string; desc: () => string }[] = [
+		{ value: 'heading', label: () => tx('小标题', 'Subheading'), icon: 'file-text', desc: () => tx('分隔一个主题', 'Separate a topic') },
+		{ value: 'paragraph', label: () => tx('短正文', 'Paragraph'), icon: 'file-text', desc: () => tx('单段说明文字', 'Single explanatory paragraph') },
+		{ value: 'list', label: () => tx('清单', 'List'), icon: 'list', desc: () => tx('步骤、规则、材料', 'Steps, rules, or materials') },
+		{ value: 'quote', label: () => tx('引用', 'Quote'), icon: 'text-quote', desc: () => tx('制度原文或引语', 'Policy text or quotation') },
+		{ value: 'callout', label: () => tx('提示框', 'Callout'), icon: 'info', desc: () => tx('重点、警告、结论', 'Key point, warning, or conclusion') },
+		{ value: 'image', label: () => tx('图片', 'Image'), icon: 'image', desc: () => tx('配图和图注', 'Image and caption') },
+		{ value: 'video', label: () => tx('视频', 'Video'), icon: 'video', desc: () => tx('视频地址和时长', 'Video URL and duration') }
 	];
 
 	const init = untrack(() => initial);
@@ -81,7 +84,7 @@
 	function save(): void {
 		const b = build();
 		if (!b) {
-			err = '请填写必要内容';
+			err = tx('请填写必要内容', 'Please fill in the required content');
 			return;
 		}
 		onsave(b);
@@ -90,7 +93,7 @@
 
 <div class="form">
 	{#if !lockType}
-		<div class="type-grid" role="listbox" aria-label="内容类型">
+		<div class="type-grid" role="listbox" aria-label={tx('内容类型', 'Content type')}>
 			{#each TYPES as t (t.value)}
 				<button
 					type="button"
@@ -102,8 +105,8 @@
 				>
 					<span class="type-icon"><Icon name={t.icon} size={16} /></span>
 					<span>
-						<strong>{t.label}</strong>
-						<small>{t.desc}</small>
+						<strong>{t.label()}</strong>
+						<small>{t.desc()}</small>
 					</span>
 				</button>
 			{/each}
@@ -113,49 +116,49 @@
 	<div class="fields">
 		{#if type === 'heading'}
 			<label class="row">
-				<span>级别</span>
+				<span>{tx('级别', 'Level')}</span>
 				<div class="seg">
 					<button type="button" class:on={level === 2} onclick={() => (level = 2)}>H2</button>
 					<button type="button" class:on={level === 3} onclick={() => (level = 3)}>H3</button>
 				</div>
 			</label>
-			<input class="inp" placeholder="标题文字" bind:value={text} />
+			<input class="inp" placeholder={tx('标题文字', 'Heading text')} bind:value={text} />
 		{:else if type === 'paragraph'}
-			<textarea class="inp" rows="4" placeholder="正文内容" bind:value={text}></textarea>
+			<textarea class="inp" rows="4" placeholder={tx('正文内容', 'Body text')} bind:value={text}></textarea>
 		{:else if type === 'list'}
-			<label class="check"><input type="checkbox" bind:checked={ordered} /> 有序列表</label>
-			<textarea class="inp" rows="5" placeholder="每行一个列表项" bind:value={itemsText}></textarea>
+			<label class="check"><input type="checkbox" bind:checked={ordered} /> {tx('有序列表', 'Numbered list')}</label>
+			<textarea class="inp" rows="5" placeholder={tx('每行一个列表项', 'One list item per line')} bind:value={itemsText}></textarea>
 		{:else if type === 'quote'}
-			<textarea class="inp" rows="3" placeholder="引用内容" bind:value={text}></textarea>
-			<input class="inp" placeholder="出处，可选" bind:value={cite} />
+			<textarea class="inp" rows="3" placeholder={tx('引用内容', 'Quote text')} bind:value={text}></textarea>
+			<input class="inp" placeholder={tx('出处，可选', 'Source, optional')} bind:value={cite} />
 		{:else if type === 'callout'}
 			<label class="row">
-				<span>风格</span>
+				<span>{tx('风格', 'Style')}</span>
 				<div class="seg">
 					{#each ['info', 'success', 'warning', 'error'] as v}
 						<button type="button" class:on={variant === v} onclick={() => (variant = v as typeof variant)}>
-							{v === 'info' ? '信息' : v === 'success' ? '成功' : v === 'warning' ? '警告' : '错误'}
+							{v === 'info' ? tx('信息', 'Info') : v === 'success' ? tx('成功', 'Success') : v === 'warning' ? tx('警告', 'Warning') : tx('错误', 'Error')}
 						</button>
 					{/each}
 				</div>
 			</label>
-			<input class="inp" placeholder="提示标题" bind:value={title} />
-			<textarea class="inp" rows="3" placeholder="提示内容" bind:value={body}></textarea>
+			<input class="inp" placeholder={tx('提示标题', 'Callout title')} bind:value={title} />
+			<textarea class="inp" rows="3" placeholder={tx('提示内容', 'Callout body')} bind:value={body}></textarea>
 		{:else if type === 'image'}
-			<input class="inp" placeholder="图片 URL" bind:value={src} />
-			<input class="inp" placeholder="替代文字 alt" bind:value={alt} />
-			<input class="inp" placeholder="图注，可选" bind:value={caption} />
+			<input class="inp" placeholder={tx('图片 URL', 'Image URL')} bind:value={src} />
+			<input class="inp" placeholder={tx('替代文字 alt', 'Alt text')} bind:value={alt} />
+			<input class="inp" placeholder={tx('图注，可选', 'Caption, optional')} bind:value={caption} />
 		{:else if type === 'video'}
-			<input class="inp" placeholder="视频 URL，或使用顶部上传" bind:value={src} />
-			<input class="inp" type="number" min="1" placeholder="时长（秒）" bind:value={durationSec} />
-			<input class="inp" placeholder="封面 URL，可选" bind:value={poster} />
+			<input class="inp" placeholder={tx('视频 URL，或使用顶部上传', 'Video URL, or use the upload button above')} bind:value={src} />
+			<input class="inp" type="number" min="1" placeholder={tx('时长（秒）', 'Duration (seconds)')} bind:value={durationSec} />
+			<input class="inp" placeholder={tx('封面 URL，可选', 'Poster URL, optional')} bind:value={poster} />
 		{/if}
 	</div>
 
 	{#if err}<p class="err">{err}</p>{/if}
 	<div class="actions">
-		<button class="btn-primary" onclick={save}>保存内容块</button>
-		<button class="btn-ghost" onclick={oncancel}>取消</button>
+		<button class="btn-primary" onclick={save}>{tx('保存内容块', 'Save block')}</button>
+		<button class="btn-ghost" onclick={oncancel}>{tx('取消', 'Cancel')}</button>
 	</div>
 </div>
 

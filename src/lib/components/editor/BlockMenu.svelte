@@ -3,16 +3,20 @@
 	import { cubicOut } from 'svelte/easing';
 	import type { BlockInput } from '$lib/content/types';
 	import Icon from '$lib/components/Icon.svelte';
+	import { useI18n } from '$lib/i18n/context';
 
 	let { onpick, onclose }: { onpick: (type: BlockInput['type']) => void; onclose: () => void } =
 		$props();
 
-	const TYPES: { type: BlockInput['type']; icon: string; label: string; desc: string }[] = [
-		{ type: 'richtext', icon: 'file-text', label: '图文正文', desc: '适合大多数课程内容' },
-		{ type: 'callout', icon: 'info', label: '重点提示', desc: '放安全提醒、注意事项、结论' },
-		{ type: 'image', icon: 'image', label: '图片说明', desc: '图片加替代文本和图注' },
-		{ type: 'video', icon: 'video', label: '视频片段', desc: '上传或粘贴视频地址' },
-		{ type: 'quiz', icon: 'circle-check', label: '检查题', desc: '学生答对后继续学习' }
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
+
+	const TYPES: { type: BlockInput['type']; icon: string; label: () => string; desc: () => string }[] = [
+		{ type: 'richtext', icon: 'file-text', label: () => tx('图文正文', 'Rich text'), desc: () => tx('适合大多数课程内容', 'Best for most course content') },
+		{ type: 'callout', icon: 'info', label: () => tx('重点提示', 'Callout'), desc: () => tx('放安全提醒、注意事项、结论', 'Safety notes, warnings, or conclusions') },
+		{ type: 'image', icon: 'image', label: () => tx('图片说明', 'Image'), desc: () => tx('图片加替代文本和图注', 'Image with alt text and caption') },
+		{ type: 'video', icon: 'video', label: () => tx('视频片段', 'Video'), desc: () => tx('上传或粘贴视频地址', 'Upload or paste a video URL') },
+		{ type: 'quiz', icon: 'circle-check', label: () => tx('检查题', 'Quiz'), desc: () => tx('学生答对后继续学习', 'Learners continue after passing') }
 	];
 
 	function onKey(e: KeyboardEvent): void {
@@ -26,18 +30,18 @@
 <div
 	class="menu"
 	role="menu"
-	aria-label="选择内容块类型"
+	aria-label={tx('选择内容块类型', 'Choose content block type')}
 	transition:scale={{ start: 0.95, opacity: 0, duration: 150, easing: cubicOut }}
 	style="transform-origin: top left;"
 >
-	<div class="menu-title">添加内容块</div>
+	<div class="menu-title">{tx('添加内容块', 'Add content block')}</div>
 	<div class="menu-grid">
 		{#each TYPES as t (t.type)}
 			<button class="menu-item" role="menuitem" onclick={() => onpick(t.type)}>
 				<span class="ic"><Icon name={t.icon} size={18} /></span>
 				<span class="txt">
-					<span class="lbl">{t.label}</span>
-					<span class="desc">{t.desc}</span>
+					<span class="lbl">{t.label()}</span>
+					<span class="desc">{t.desc()}</span>
 				</span>
 			</button>
 		{/each}

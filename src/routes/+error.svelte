@@ -4,20 +4,21 @@
 	import { useI18n } from '$lib/i18n/context';
 
 	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 	const isLocked = $derived(page.status === 403);
 	const isMissing = $derived(page.status === 404);
 	const title = $derived(
-		isLocked ? '本节尚未解锁' : isMissing ? '页面不存在' : '页面暂时不可用'
+		isLocked ? tx('本节尚未解锁', 'This section is locked') : isMissing ? tx('页面不存在', 'Page not found') : tx('页面暂时不可用', 'Page temporarily unavailable')
 	);
 	const body = $derived(
 		isLocked
-			? '请先从学习入口继续当前进度，系统会自动带你进入下一节可学习内容。'
+			? tx('请先从学习入口继续当前进度，系统会自动带你进入下一节可学习内容。', 'Continue from the learning entry point. The system will take you to the next available section.')
 			: isMissing
-				? '这个链接可能已经失效，返回入口后可以重新选择学习或编辑工作区。'
-				: '请回到入口重试。如果问题持续出现，再检查当前课程内容或服务状态。'
+				? tx('这个链接可能已经失效，返回入口后可以重新选择学习或编辑工作区。', 'This link may have expired. Return to the entry point to choose learning or the editor workspace again.')
+				: tx('请回到入口重试。如果问题持续出现，再检查当前课程内容或服务状态。', 'Return to the entry point and try again. If the issue continues, check the course content or service status.')
 	);
 	const primaryHref = $derived(isLocked ? '/learn' : '/');
-	const primaryText = $derived(isLocked ? '继续学习' : '返回入口');
+	const primaryText = $derived(isLocked ? tx('继续学习', 'Continue learning') : tx('返回入口', 'Back to entry'));
 </script>
 
 <svelte:head>
@@ -36,7 +37,7 @@
 			{primaryText}
 			<Icon name="arrow-right" size={16} />
 		</a>
-		<a class="secondary" href="/">切换身份</a>
+		<a class="secondary" href="/">{tx('切换身份', 'Switch role')}</a>
 	</div>
 </section>
 

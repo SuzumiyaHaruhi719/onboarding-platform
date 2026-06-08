@@ -10,6 +10,7 @@ export type JobStatus = 'pending' | 'extracting' | 'converting' | 'ready' | 'err
 export interface IngestEvent {
 	t: number; // ms since job start
 	msg: string;
+	msgEn?: string;
 }
 
 export interface IngestJob {
@@ -22,6 +23,7 @@ export interface IngestJob {
 	/** Converted blocks awaiting user-chosen insertion (NOT yet saved). */
 	blocks: BlockInput[];
 	error?: string;
+	errorEn?: string;
 }
 
 // In-memory job registry (single-process adapter-node).
@@ -53,40 +55,41 @@ function localFallback(markdown: boolean, content: string): BlockInput[] {
 async function run(jobId: string, filename: string, buf: Buffer): Promise<void> {
 	const job = jobs.get(jobId);
 	if (!job) return;
-	const log = (msg: string): void => {
-		job.events.push({ t: Date.now() - job.startedAt, msg });
+	const log = (msg: string, msgEn?: string): void => {
+		job.events.push({ t: Date.now() - job.startedAt, msg, msgEn });
 	};
 	try {
-		log(`已接收文件「${filename}」,开始处理`);
+		log(`已接收文件「${filename}」，开始处理`, `Received "${filename}". Processing started`);
 		job.status = 'extracting';
 		const { content, markdown } = await extractText(filename, buf);
 		const cleanContent = cleanExtractedSource(content);
 		if (!cleanContent.trim()) throw new Error('未能从文件中提取到文本');
-		log(`提取文本完成 · ${cleanContent.length} 字`);
+		log(`提取文本完成 · ${cleanContent.length} 字`, `Text extracted · ${cleanContent.length} characters`);
 
 		job.status = 'converting';
 		let blocks: BlockInput[] = [];
 		if (hasAgentKey()) {
-			log('调用多模态 agent(qwen3.7-plus)转译为可读章节…');
+			log('调用多模态 agent(qwen3.7-plus)转译为可读章节…', 'Calling multimodal agent (qwen3.7-plus) to translate into readable sections...');
 			try {
 				const result = await convertWithAgent(cleanContent);
 				if (result.blocks.length > 0) {
 					blocks = result.blocks;
 					job.tokens = result.tokens;
 					job.usedAgent = true;
-					log(`AI 转译完成 · ${blocks.length} 块 · ${result.tokens} tokens`);
+					log(`AI 转译完成 · ${blocks.length} 块 · ${result.tokens} tokens`, `AI translation complete · ${blocks.length} blocks · ${result.tokens} tokens`);
 				} else {
-					log('AI 未返回有效内容,改用本地解析');
+					log('AI 未返回有效内容，改用本地解析', 'AI returned no usable content. Falling back to local parsing');
 				}
 			} catch (e) {
-				log('AI 转译失败(' + (e instanceof Error ? e.message : '未知') + '),改用本地解析');
+				const reason = e instanceof Error ? e.message : '未知';
+				log(`AI 转译失败(${reason})，改用本地解析`, `AI translation failed (${reason}). Falling back to local parsing`);
 			}
 		} else {
-			log('未配置 AI 密钥,使用本地解析(可读性有限)');
+			log('未配置 AI 密钥，使用本地解析(可读性有限)', 'No AI key configured. Using local parsing with limited readability');
 		}
 		if (blocks.length === 0) {
 			blocks = localFallback(markdown, cleanContent);
-			log(`本地解析完成 · ${blocks.length} 块`);
+			log(`本地解析完成 · ${blocks.length} 块`, `Local parsing complete · ${blocks.length} blocks`);
 		}
 
 		// Collapse the converted content into a single editable Markdown rich-text
@@ -98,15 +101,17 @@ async function run(jobId: string, filename: string, buf: Buffer): Promise<void> 
 		if (job.blocks.length === 0) {
 			job.status = 'error';
 			job.error = '没有可用的内容';
-			log('没有可用的内容');
+			job.errorEn = 'No usable content';
+			log('没有可用的内容', 'No usable content');
 		} else {
 			job.status = 'ready';
-			log(`转译完成,已生成可编辑富文本(${valid.length} 段),等待选择插入位置`);
+			log(`转译完成，已生成可编辑富文本(${valid.length} 段)，等待选择插入位置`, `Translation complete. Editable rich text generated (${valid.length} paragraphs). Choose an insertion point`);
 		}
 	} catch (e) {
 		job.status = 'error';
 		job.error = e instanceof Error ? e.message : '转译失败';
+		job.errorEn = e instanceof Error ? e.message : 'Translation failed';
 		job.durationMs = Date.now() - job.startedAt;
-		log('出错:' + job.error);
+		log('出错：' + job.error, 'Error: ' + job.errorEn);
 	}
 }

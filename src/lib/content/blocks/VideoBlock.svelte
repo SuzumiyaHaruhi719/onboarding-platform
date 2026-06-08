@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { VideoInterval } from '$lib/anti-skip/types';
 	import { VIDEO_MAX_STEP_SEC } from '$lib/anti-skip/constants';
+	import { useI18n } from '$lib/i18n/context';
 
 	let {
 		src,
@@ -18,6 +19,8 @@
 	let maxAllowed = 0; // furthest second legitimately reached
 	let lastT = 0;
 	let intervals: VideoInterval[] = [];
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	function onTimeUpdate(): void {
 		const v = video;
@@ -71,7 +74,7 @@
 	controlslist="nodownload noplaybackrate noremoteplayback"
 	disablepictureinpicture
 	preload="metadata"
-	title={`时长约 ${durationSec} 秒 / ~${durationSec}s`}
+	title={tx(`时长约 ${durationSec} 秒`, `Duration about ${durationSec}s`)}
 	ontimeupdate={onTimeUpdate}
 	onseeking={onSeeking}
 	onratechange={onRateChange}

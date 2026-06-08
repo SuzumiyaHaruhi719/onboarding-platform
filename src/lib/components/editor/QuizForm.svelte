@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { QuizInput, EditorQuiz } from '$lib/content/types';
+	import { useI18n } from '$lib/i18n/context';
 
 	let {
 		initial,
@@ -19,6 +20,8 @@
 	let answerMulti = $state<number[]>(init?.type === 'multiple' ? [...(init.answer as number[])] : []);
 	let answerBool = $state<boolean>(init?.type === 'boolean' ? (init.answer as boolean) : true);
 	let err = $state('');
+	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	function addOption(): void {
 		options = [...options, ''];
@@ -39,7 +42,7 @@
 		const q = question.trim();
 		if (!q) return null;
 		if (type === 'boolean') {
-			return { type, question: q, options: ['对', '错'], answer: answerBool };
+			return { type, question: q, options: [tx('对', 'True'), tx('错', 'False')], answer: answerBool };
 		}
 		const opts = options.map((o) => o.trim());
 		if (opts.length < 2 || opts.some((o) => !o)) return null;
@@ -56,7 +59,7 @@
 	function save(): void {
 		const quiz = build();
 		if (!quiz) {
-			err = '请填写题干、至少两个选项,并标记正确答案';
+			err = tx('请填写题干、至少两个选项，并标记正确答案', 'Add a question, at least two options, and mark the correct answer');
 			return;
 		}
 		onsave(quiz);
@@ -65,48 +68,48 @@
 
 <div class="form">
 	<label class="row">
-		<span>题型</span>
+		<span>{tx('题型', 'Type')}</span>
 		<select bind:value={type}>
-			<option value="single">单选</option>
-			<option value="multiple">多选</option>
-			<option value="boolean">判断</option>
+			<option value="single">{tx('单选', 'Single choice')}</option>
+			<option value="multiple">{tx('多选', 'Multiple choice')}</option>
+			<option value="boolean">{tx('判断', 'True/False')}</option>
 		</select>
 	</label>
 
-	<textarea class="inp" rows="2" placeholder="题干" bind:value={question}></textarea>
+	<textarea class="inp" rows="2" placeholder={tx('题干', 'Question')} bind:value={question}></textarea>
 
 	{#if type === 'boolean'}
 		<div class="bool">
-			<label><input type="radio" name="bool" checked={answerBool} onchange={() => (answerBool = true)} /> 对(正确答案)</label>
-			<label><input type="radio" name="bool" checked={!answerBool} onchange={() => (answerBool = false)} /> 错(正确答案)</label>
+			<label><input type="radio" name="bool" checked={answerBool} onchange={() => (answerBool = true)} /> {tx('对（正确答案）', 'True (correct)')}</label>
+			<label><input type="radio" name="bool" checked={!answerBool} onchange={() => (answerBool = false)} /> {tx('错（正确答案）', 'False (correct)')}</label>
 		</div>
 	{:else}
 		<div class="opts">
 			{#each options as opt, i (i)}
 				<div class="opt">
 					{#if type === 'single'}
-						<input type="radio" name="ans" checked={answerSingle === i} onchange={() => (answerSingle = i)} title="标为正确答案" />
+						<input type="radio" name="ans" checked={answerSingle === i} onchange={() => (answerSingle = i)} title={tx('标为正确答案', 'Mark as correct')} />
 					{:else}
-						<input type="checkbox" checked={answerMulti.includes(i)} onchange={() => toggleMulti(i)} title="标为正确答案" />
+						<input type="checkbox" checked={answerMulti.includes(i)} onchange={() => toggleMulti(i)} title={tx('标为正确答案', 'Mark as correct')} />
 					{/if}
 					<input
 						class="inp"
-						placeholder={`选项 ${i + 1}`}
+						placeholder={tx(`选项 ${i + 1}`, `Option ${i + 1}`)}
 						value={options[i] ?? ''}
 						oninput={(e) => (options[i] = e.currentTarget.value)}
 					/>
-					<button class="x" onclick={() => removeOption(i)} disabled={options.length <= 2} aria-label="删除选项"><Icon name="x" size={15} /></button>
+					<button class="x" onclick={() => removeOption(i)} disabled={options.length <= 2} aria-label={tx('删除选项', 'Delete option')}><Icon name="x" size={15} /></button>
 				</div>
 			{/each}
-			<button class="btn-ghost" onclick={addOption}><Icon name="plus" size={14} /> 添加选项</button>
+			<button class="btn-ghost" onclick={addOption}><Icon name="plus" size={14} /> {tx('添加选项', 'Add option')}</button>
 		</div>
-		<p class="hint">勾选/圆点标记正确答案({type === 'single' ? '单选一个' : '多选可多个'})</p>
+		<p class="hint">{tx('勾选/圆点标记正确答案', 'Use the check/radio control to mark correct answers')}({type === 'single' ? tx('单选一个', 'choose one') : tx('多选可多个', 'choose multiple')})</p>
 	{/if}
 
 	{#if err}<p class="err">{err}</p>{/if}
 	<div class="actions">
-		<button class="btn-primary" onclick={save}>保存题目</button>
-		<button class="btn-ghost" onclick={oncancel}>取消</button>
+		<button class="btn-primary" onclick={save}>{tx('保存题目', 'Save quiz')}</button>
+		<button class="btn-ghost" onclick={oncancel}>{tx('取消', 'Cancel')}</button>
 	</div>
 </div>
 

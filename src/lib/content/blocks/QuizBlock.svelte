@@ -14,8 +14,13 @@
 	} = $props();
 
 	const i18n = useI18n();
+	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
-	const TYPE_LABEL: Record<string, string> = { single: '单选', multiple: '多选', boolean: '判断' };
+	const TYPE_LABEL: Record<string, () => string> = {
+		single: () => tx('单选', 'Single'),
+		multiple: () => tx('多选', 'Multiple'),
+		boolean: () => tx('判断', 'True/False')
+	};
 
 	let single = $state<number | null>(null);
 	let multi = $state<number[]>([]);
@@ -67,7 +72,7 @@
 
 <div class="quiz" class:passed class:wrong>
 	<div class="q-head">
-		<span class="q-badge">{TYPE_LABEL[quiz.type]}</span>
+		<span class="q-badge">{TYPE_LABEL[quiz.type]?.() ?? quiz.type}</span>
 		<p class="q-text">{quiz.question}</p>
 		{#if passed}<span class="q-pass"><Icon name="circle-check" size={18} /></span>{/if}
 	</div>
@@ -120,8 +125,8 @@
 			background var(--transition-base);
 	}
 	.quiz.passed {
-		/* Passed state stays on a neutral surface (GLP-dark: no green card bg). The
-		 * brand border + the green check icon + "已答对" message signal success. */
+		/* Passed state stays on a neutral surface; the brand border and check icon
+		 * carry success without turning the whole card green. */
 		border-color: var(--brand-300);
 	}
 	.q-head {
