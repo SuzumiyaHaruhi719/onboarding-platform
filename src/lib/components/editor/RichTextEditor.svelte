@@ -74,10 +74,10 @@
 		<button type="button" class="s" class:on={active('strike')} title="删除线" onclick={() => chain().toggleStrike().run()}>S</button>
 		<button type="button" class="code" class:on={active('code')} title="行内代码" onclick={() => chain().toggleCode().run()}>{'</>'}</button>
 		<span class="sep"></span>
-		<button type="button" class="ico" class:on={active('bulletList')} title="无序列表" onclick={() => chain().toggleBulletList().run()}><Icon name="list" size={16} /></button>
-		<button type="button" class="ico" class:on={active('orderedList')} title="有序列表" onclick={() => chain().toggleOrderedList().run()}><Icon name="list-ordered" size={16} /></button>
-		<button type="button" class="ico" class:on={active('blockquote')} title="引用" onclick={() => chain().toggleBlockquote().run()}><Icon name="text-quote" size={16} /></button>
-		<button type="button" class="ico" class:on={active('link')} title="链接" onclick={setLink}><Icon name="link" size={16} /></button>
+		<button type="button" class="ico" class:on={active('bulletList')} title="无序列表" aria-label="无序列表" onclick={() => chain().toggleBulletList().run()}><Icon name="list" size={16} /></button>
+		<button type="button" class="ico" class:on={active('orderedList')} title="有序列表" aria-label="有序列表" onclick={() => chain().toggleOrderedList().run()}><Icon name="list-ordered" size={16} /></button>
+		<button type="button" class="ico" class:on={active('blockquote')} title="引用" aria-label="引用" onclick={() => chain().toggleBlockquote().run()}><Icon name="text-quote" size={16} /></button>
+		<button type="button" class="ico" class:on={active('link')} title="链接" aria-label="链接" onclick={setLink}><Icon name="link" size={16} /></button>
 	</div>
 
 	<div class="surface" bind:this={element}></div>
