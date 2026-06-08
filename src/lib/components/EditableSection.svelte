@@ -257,6 +257,76 @@
 	const previewRender = $derived(previewBlocks.map((b, i) => ({ ...b, id: `pv-${i}` }) as Block));
 	const hasBlocks = $derived(section.blocks.length > 0);
 
+	function blockPlainText(block: Block): string {
+		if (block.type === 'richtext') return block.markdown;
+		if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'quote') return block.text;
+		if (block.type === 'list') return block.items.join('\n');
+		if (block.type === 'callout') return `${block.title}\n${block.body}`;
+		return '';
+	}
+
+	function isExtractorNoiseBlock(block: Block): boolean {
+		const text = blockPlainText(block).trim();
+		if (!text) return false;
+		if (/^-{3,}$/.test(text)) return true;
+		return /^---\s*title\b[\s\S]*\b(created|modified|language|islinearized)\b/i.test(text);
+	}
+
+	function escapeMd(text: string): string {
+		return text.replace(/\\/g, '\\\\').replace(/\*/g, '\\*').replace(/_/g, '\\_');
+	}
+
+	function blockToMarkdown(block: Block): string {
+		switch (block.type) {
+			case 'richtext':
+				return block.markdown;
+			case 'heading':
+				return `${block.level === 2 ? '##' : '###'} ${block.text}`;
+			case 'paragraph':
+				return block.text;
+			case 'list':
+				return block.items.map((item, i) => `${block.ordered ? `${i + 1}.` : '-'} ${item}`).join('\n');
+			case 'quote':
+				return `> ${block.text}${block.cite ? `\n>\n> - ${block.cite}` : ''}`;
+			case 'callout':
+				return `> **${escapeMd(block.title)}**${block.body ? `\n>\n> ${block.body}` : ''}`;
+			default:
+				return '';
+		}
+	}
+
+	const documentMarkdown = $derived(
+		section.blocks
+			.filter((block) => !isExtractorNoiseBlock(block))
+			.map((block) => blockToMarkdown(block))
+			.filter((part) => part.trim())
+			.join('\n\n')
+	);
+
+	async function replaceDocumentContent(markdown: string): Promise<void> {
+		const md = markdown.trim();
+		if (!md) {
+			showToast('文档不能为空');
+			return;
+		}
+		busy = true;
+		try {
+			for (const block of section.blocks) {
+				if (block.type === 'image' || block.type === 'video' || block.type === 'quiz') continue;
+				await call('/api/editor/block', { id: block.id }, 'DELETE');
+			}
+			await call('/api/editor/blocks/insert', {
+				sectionId: section.id,
+				blocks: [{ type: 'richtext', markdown: md }],
+				position: 'start'
+			});
+			await refresh();
+			showToast('整篇文档已保存');
+		} finally {
+			busy = false;
+		}
+	}
+
 	function stopTimer(): void {
 		if (timer) clearInterval(timer);
 		timer = null;
@@ -454,10 +524,20 @@
 
 			{#if preview}
 				{#each section.blocks as block (block.id)}
-					<BlockRenderer {block} quizzes={section.quizzes} sectionId={section.id} onintervals={noop} onpassed={noop} />
+					{#if !isExtractorNoiseBlock(block)}
+						<BlockRenderer {block} quizzes={section.quizzes} sectionId={section.id} onintervals={noop} onpassed={noop} />
+					{/if}
 				{/each}
 				{#if section.blocks.length === 0}<p class="muted">本节暂无内容。</p>{/if}
 			{:else}
+				<div class="word-shell">
+					<LazyRichTextEditor
+						initial={documentMarkdown}
+						onsave={replaceDocumentContent}
+						oncancel={() => showToast('继续编辑中，未做更改')}
+					/>
+				</div>
+
 				{#if section.blocks.length === 0 && !pending}
 					<div class="empty">
 						<div class="empty-icon"><Icon name="square-pen" size={24} /></div>
@@ -928,6 +1008,15 @@
 	}
 	.muted {
 		color: var(--text-tertiary);
+	}
+	.word-shell {
+		margin-top: var(--space-4);
+	}
+	.word-shell ~ .empty,
+	.word-shell ~ .inserting,
+	.word-shell ~ .eb,
+	.word-shell ~ .add-end {
+		display: none;
 	}
 
 	.empty {

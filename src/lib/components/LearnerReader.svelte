@@ -54,6 +54,21 @@
 		void refresh();
 	}
 
+	function blockPlainText(block: SectionView['blocks'][number]): string {
+		if (block.type === 'richtext') return block.markdown;
+		if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'quote') return block.text;
+		if (block.type === 'list') return block.items.join('\n');
+		if (block.type === 'callout') return `${block.title}\n${block.body}`;
+		return '';
+	}
+
+	function isExtractorNoiseBlock(block: SectionView['blocks'][number]): boolean {
+		const text = blockPlainText(block).trim();
+		if (!text) return false;
+		if (/^-{3,}$/.test(text)) return true;
+		return /^---\s*title\b[\s\S]*\b(created|modified|language|islinearized)\b/i.test(text);
+	}
+
 	$effect(() => {
 		const sectionId = section.id;
 
@@ -93,15 +108,17 @@
 		<p class="eyebrow rise-in"><span class="dot"></span>{i18n().t('learn.eyebrow')}</p>
 		<h1 class="rise-in" style="animation-delay: 55ms">{section.title}</h1>
 		{#each section.blocks as block, i (block.id)}
-			<div class="rise-in" style="animation-delay: {110 + Math.min(i, 8) * 45}ms">
-				<BlockRenderer
-					{block}
-					quizzes={section.quizzes}
-					sectionId={section.id}
-					onintervals={onIntervals}
-					onpassed={onPassed}
-				/>
-			</div>
+			{#if !isExtractorNoiseBlock(block)}
+				<div class="rise-in" style="animation-delay: {110 + Math.min(i, 8) * 45}ms">
+					<BlockRenderer
+						{block}
+						quizzes={section.quizzes}
+						sectionId={section.id}
+						onintervals={onIntervals}
+						onpassed={onPassed}
+					/>
+				</div>
+			{/if}
 		{/each}
 		<div class="end-spacer"></div>
 	</article>
@@ -130,14 +147,20 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) 320px;
 		align-items: start;
+		gap: var(--space-6);
 		max-width: 1200px;
 		margin: 0 auto;
+		padding: 0 var(--space-6);
 	}
 	.content {
-		padding: var(--space-12) var(--space-10) var(--space-16);
-		max-width: 760px;
+		padding: var(--space-12) var(--space-12) var(--space-16);
+		max-width: 820px;
 		width: 100%;
-		margin: 0 auto;
+		margin: var(--space-8) auto;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-2xl);
+		background: var(--surface-elevated);
+		box-shadow: var(--shadow-sm);
 	}
 	.eyebrow {
 		display: flex;
@@ -171,15 +194,13 @@
 		position: sticky;
 		top: calc(56px + var(--space-5));
 		align-self: start;
-		border-left: 1px solid var(--border-subtle);
-		background: var(--surface-page);
-		padding: var(--space-6);
+		padding: var(--space-8) 0;
 	}
 	.rail-panel {
 		background: var(--surface-elevated);
 		border: 1px solid var(--border-default);
 		border-radius: var(--radius-2xl);
-		box-shadow: var(--shadow-sm);
+		box-shadow: var(--shadow-md);
 		padding: var(--space-6);
 		display: flex;
 		flex-direction: column;
@@ -213,11 +234,16 @@
 	@media (max-width: 768px) {
 		.reader {
 			grid-template-columns: 1fr;
+			padding: 0 var(--space-4);
+		}
+		.content {
+			margin: var(--space-4) auto;
+			padding: var(--space-8) var(--space-5) var(--space-12);
 		}
 		.rail {
 			position: static;
 			border-left: none;
-			border-top: 1px solid var(--border-subtle);
+			padding: 0 0 var(--space-8);
 		}
 	}
 </style>

@@ -55,7 +55,7 @@
 		top: 56px;
 		height: calc(100vh - 56px);
 		align-self: start;
-		background: var(--surface-elevated);
+		background: var(--surface-container);
 		border-right: 1px solid var(--border-subtle);
 		padding: var(--space-4);
 		overflow-y: auto;
@@ -75,7 +75,9 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
+		min-height: 42px;
 		padding: var(--space-2) var(--space-3);
+		border: 1px solid transparent;
 		border-radius: var(--radius-lg);
 		color: var(--text-secondary);
 		font-size: var(--text-sm);
@@ -83,12 +85,15 @@
 		transition: var(--transition-fast);
 	}
 	a.navitem:hover {
+		border-color: var(--border-subtle);
 		background: var(--surface-hover);
 		color: var(--text-primary);
 	}
 	.navitem.active {
-		background: var(--surface-hover);
+		border-color: var(--border-default);
+		background: var(--surface-elevated);
 		color: var(--text-primary);
+		box-shadow: var(--shadow-sm);
 	}
 	.navitem.locked {
 		opacity: 0.5;
@@ -98,9 +103,17 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 18px;
+		width: 28px;
+		height: 28px;
 		flex: none;
+		border-radius: var(--radius-md);
+		background: var(--surface-subtle);
 		color: var(--text-tertiary);
+	}
+	.navitem.active .ic {
+		background: var(--brand-50);
+		border: 1px solid var(--brand-200);
+		color: var(--text-brand);
 	}
 	.ic.done {
 		color: var(--brand-500);
