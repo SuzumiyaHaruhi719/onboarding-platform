@@ -931,7 +931,7 @@
 	.add-end-btn:hover {
 		border-color: var(--brand-500);
 		color: var(--text-brand);
-		background: var(--brand-50);
+		background: var(--surface-hover);
 	}
 
 	.hint {

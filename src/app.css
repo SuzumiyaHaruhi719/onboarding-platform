@@ -69,8 +69,10 @@ button:active:not(:disabled) {
 }
 
 :focus-visible {
-	outline: none;
-	box-shadow: 0 0 0 3px var(--brand-200, rgba(0, 170, 79, 0.25));
+	/* Opaque, high-contrast focus indicator (≥3:1 in both themes). border-focus is
+	 * the solid brand-500; offset keeps it clear of the element edge. */
+	outline: 2px solid var(--border-focus);
+	outline-offset: 2px;
 	border-radius: var(--radius-sm);
 }
 
@@ -123,9 +125,10 @@ button:active:not(:disabled) {
 	.rise-in {
 		/* `backwards` (not `both`): hide during the stagger delay, but DON'T retain
 		 * the end transform afterward — otherwise the fill would override :hover
-		 * lifts on cards/buttons. After it finishes, normal CSS (incl. :hover) wins. */
+		 * lifts on cards/buttons. After it finishes, normal CSS (incl. :hover) wins.
+		 * No `will-change`: a one-shot 460ms entrance doesn't need it, and leaving it
+		 * on many reader blocks would pin needless compositor layers. */
 		animation: rise-in 460ms var(--ease-out) backwards;
-		will-change: transform, opacity;
 	}
 }
 

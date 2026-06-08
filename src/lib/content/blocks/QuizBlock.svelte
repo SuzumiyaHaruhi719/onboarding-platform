@@ -120,8 +120,9 @@
 			background var(--transition-base);
 	}
 	.quiz.passed {
+		/* Passed state stays on a neutral surface (GLP-dark: no green card bg). The
+		 * brand border + the green check icon + "已答对" message signal success. */
 		border-color: var(--brand-300);
-		background: var(--brand-50);
 	}
 	.q-head {
 		display: flex;

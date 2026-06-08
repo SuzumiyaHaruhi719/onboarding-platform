@@ -39,6 +39,8 @@
 	--surface-active: #e5e7eb;
 	/* 半透明导航底色 — 让 backdrop-blur 形成毛玻璃质感(GLP) */
 	--nav-bg: rgba(255, 255, 255, 0.72);
+	/* Logo 用更深的品牌绿(brand-700)以在半透明导航上达到 4.5:1+ 文本对比 */
+	--logo: #006845;
 
 	/* 边框 */
 	--border-default: #dde3ea;
@@ -163,6 +165,8 @@
 	--surface-active: #353e4c;
 	/* GLP-dark 导航底色:半透明深灰 + blur(10px),无氛围光 */
 	--nav-bg: rgba(15, 17, 21, 0.72);
+	/* 深色导航上品牌绿对比充足,直接用 brand-500 */
+	--logo: #2fd47a;
 
 	--border-default: #2e3542;
 	--border-subtle: #252c38;

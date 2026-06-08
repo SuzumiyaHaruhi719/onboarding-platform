@@ -64,7 +64,7 @@
 		-webkit-backdrop-filter: blur(16px) saturate(1.4);
 	}
 	.logo {
-		color: var(--text-brand);
+		color: var(--logo);
 		font-weight: 700;
 		font-size: var(--text-lg);
 	}
