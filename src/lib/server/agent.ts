@@ -1,12 +1,15 @@
+import { env } from '$env/dynamic/private';
 import { blockInputSchema } from './schemas';
 import type { BlockInput } from '$lib/content/types';
 
-const BASE = process.env.DASHSCOPE_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const MODEL = process.env.QWEN_MODEL ?? 'qwen3.7-plus';
+// $env/dynamic/private reads .env in dev (Vite does NOT populate process.env for
+// server code) and the real process env in production — so the key loads either way.
+const BASE = env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const MODEL = env.QWEN_MODEL || 'qwen3.7-plus';
 
 /** The multimodal agent (qwen3.7-plus) is configured only when its key is set. */
 export function hasAgentKey(): boolean {
-	return !!process.env.DASHSCOPE_API_KEY;
+	return !!env.DASHSCOPE_API_KEY;
 }
 
 const SYSTEM_PROMPT = `You are an onboarding content editor. Rewrite the raw source document into a polished, READABLE onboarding chapter — not a raw text dump. Reorganize, retitle, and rephrase for clarity and a welcoming onboarding tone, while staying faithful to the source's facts.
@@ -39,7 +42,7 @@ export interface AgentResult {
 
 /** Transform document text into validated blocks via qwen3.7-plus. */
 export async function convertWithAgent(text: string): Promise<AgentResult> {
-	const key = process.env.DASHSCOPE_API_KEY;
+	const key = env.DASHSCOPE_API_KEY;
 	if (!key) throw new Error('DASHSCOPE_API_KEY not set');
 
 	const res = await fetch(`${BASE}/chat/completions`, {
