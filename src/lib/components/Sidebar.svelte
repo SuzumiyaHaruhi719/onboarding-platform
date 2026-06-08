@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { ModuleWithSections } from '$lib/db/queries';
 	import Icon from '$lib/components/Icon.svelte';
@@ -15,16 +16,142 @@
 		editable?: boolean;
 	} = $props();
 
+	let creatingModule = $state(false);
+	let moduleTitle = $state('');
+	let creatingSectionFor = $state<string | null>(null);
+	let sectionTitles = $state<Record<string, string>>({});
+	let busy = $state(false);
+	let notice = $state('');
+
 	function isUnlocked(id: string): boolean {
 		const i = orderedIds.indexOf(id);
 		if (i <= 0) return true;
 		return progress[orderedIds[i - 1]!] === 'completed';
 	}
+
+	async function post(url: string, body: unknown): Promise<Record<string, unknown> | null> {
+		busy = true;
+		notice = '';
+		try {
+			const res = await fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			if (!res.ok) {
+				notice = '创建失败，请稍后重试';
+				return null;
+			}
+			return (await res.json()) as Record<string, unknown>;
+		} catch {
+			notice = '网络异常，创建失败';
+			return null;
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function createModule(): Promise<void> {
+		const title = moduleTitle.trim();
+		if (!title || busy) return;
+		const created = await post('/api/editor/module', { title });
+		const moduleId = typeof created?.id === 'string' ? created.id : null;
+		if (!moduleId) return;
+		const section = await post('/api/editor/section', { moduleId, title: '开始学习' });
+		const sectionId = typeof section?.id === 'string' ? section.id : null;
+		moduleTitle = '';
+		creatingModule = false;
+		notice = '模块已创建';
+		if (sectionId) await goto(`/learn/${sectionId}`, { invalidateAll: true });
+		else await invalidateAll();
+	}
+
+	async function createSection(moduleId: string): Promise<void> {
+		const title = (sectionTitles[moduleId] ?? '').trim();
+		if (!title || busy) return;
+		const created = await post('/api/editor/section', { moduleId, title });
+		const sectionId = typeof created?.id === 'string' ? created.id : null;
+		sectionTitles = { ...sectionTitles, [moduleId]: '' };
+		creatingSectionFor = null;
+		notice = '章节已创建';
+		if (sectionId) await goto(`/learn/${sectionId}`, { invalidateAll: true });
+		else await invalidateAll();
+	}
 </script>
 
-<aside class="sidebar">
+<aside class="sidebar" class:editable>
+	{#if editable}
+		<div class="structure-tools" aria-label="课程结构管理">
+			<div>
+				<p class="tools-kicker">编辑结构</p>
+				<strong>课程目录</strong>
+			</div>
+			<button
+				class="tool-add"
+				aria-label="创建新模块"
+				title="创建新模块"
+				onclick={() => {
+					creatingModule = !creatingModule;
+					creatingSectionFor = null;
+				}}
+			>
+				<Icon name="layers" size={15} />
+				<span>新模块</span>
+			</button>
+		</div>
+		{#if creatingModule}
+			<div class="create-row">
+				<input
+					bind:value={moduleTitle}
+					placeholder="模块名称"
+					aria-label="模块名称"
+					onkeydown={(e) => {
+						if (e.key === 'Enter') createModule();
+						if (e.key === 'Escape') creatingModule = false;
+					}}
+				/>
+				<button class="confirm" aria-label="确认创建模块" disabled={busy || !moduleTitle.trim()} onclick={createModule}>
+					<Icon name="plus" size={15} />
+				</button>
+			</div>
+		{/if}
+		{#if notice}<p class="notice">{notice}</p>{/if}
+	{/if}
 	{#each modules as m (m.id)}
-		<div class="mod">{m.title}</div>
+		<div class="mod-row">
+			<div class="mod">{m.title}</div>
+			{#if editable}
+				<button
+					class="mini-add"
+					aria-label={`在${m.title}中创建新章节`}
+					title="创建新章节"
+					onclick={() => {
+						creatingSectionFor = creatingSectionFor === m.id ? null : m.id;
+						creatingModule = false;
+					}}
+				>
+					<Icon name="plus" size={14} />
+					<span>章节</span>
+				</button>
+			{/if}
+		</div>
+		{#if editable && creatingSectionFor === m.id}
+			<div class="create-row section-create">
+				<input
+					value={sectionTitles[m.id] ?? ''}
+					placeholder="章节名称"
+					aria-label={`${m.title}的新章节名称`}
+					oninput={(e) => (sectionTitles = { ...sectionTitles, [m.id]: e.currentTarget.value })}
+					onkeydown={(e) => {
+						if (e.key === 'Enter') createSection(m.id);
+						if (e.key === 'Escape') creatingSectionFor = null;
+					}}
+				/>
+				<button class="confirm" aria-label="确认创建章节" disabled={busy || !(sectionTitles[m.id] ?? '').trim()} onclick={() => createSection(m.id)}>
+					<Icon name="plus" size={15} />
+				</button>
+			</div>
+		{/if}
 		{#each m.sections as s (s.id)}
 			{@const done = progress[s.id] === 'completed'}
 			{@const open = editable || isUnlocked(s.id)}
@@ -60,16 +187,134 @@
 		padding: var(--space-4);
 		overflow-y: auto;
 	}
+	.structure-tools {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-bottom: var(--space-3);
+		padding: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-lg);
+		background: var(--surface-elevated);
+		box-shadow: var(--shadow-sm);
+	}
+	.tools-kicker {
+		margin: 0 0 2px;
+		font-size: 10px;
+		font-family: var(--font-mono);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-tertiary);
+	}
+	.structure-tools strong {
+		display: block;
+		color: var(--text-primary);
+		font-size: var(--text-sm);
+		line-height: 1.2;
+	}
+	.tool-add,
+	.mini-add,
+	.confirm {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-1);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		background: var(--surface-page);
+		color: var(--text-secondary);
+		font-weight: 700;
+		cursor: pointer;
+		transition: var(--transition-fast);
+	}
+	.tool-add {
+		min-height: 36px;
+		padding: 0 var(--space-3);
+		font-size: var(--text-xs);
+		white-space: nowrap;
+	}
+	.tool-add:hover,
+	.mini-add:hover,
+	.confirm:hover:not(:disabled) {
+		border-color: var(--brand-300);
+		background: var(--brand-50);
+		color: var(--text-brand);
+	}
+	.create-row {
+		display: grid;
+		grid-template-columns: 1fr 38px;
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+		padding: var(--space-2);
+		border: 1px solid var(--brand-200);
+		border-radius: var(--radius-lg);
+		background: var(--brand-50);
+	}
+	.create-row input {
+		min-width: 0;
+		min-height: 38px;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		padding: 0 var(--space-3);
+		background: var(--surface-elevated);
+		color: var(--text-primary);
+		font: inherit;
+	}
+	.create-row input:focus {
+		outline: 2px solid var(--brand-200);
+		border-color: var(--brand-400);
+	}
+	.confirm {
+		width: 38px;
+		min-height: 38px;
+		background: var(--brand-500);
+		border-color: var(--brand-500);
+		color: white;
+	}
+	.confirm:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+	.notice {
+		margin: 0 0 var(--space-3);
+		color: var(--text-brand);
+		font-size: var(--text-xs);
+	}
+	.mod-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		margin: var(--space-4) 0 var(--space-2);
+	}
 	.mod {
 		font-family: var(--font-mono);
 		font-size: var(--text-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--text-tertiary);
-		margin: var(--space-4) 0 var(--space-2);
+		margin: 0;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
-	.mod:first-child {
+	.structure-tools + .mod-row,
+	.notice + .mod-row,
+	.create-row + .mod-row,
+	.mod-row:first-of-type {
 		margin-top: 0;
+	}
+	.mini-add {
+		min-height: 28px;
+		padding: 0 var(--space-2);
+		font-size: 11px;
+		flex: none;
+	}
+	.section-create {
+		margin-top: calc(var(--space-1) * -1);
+		margin-bottom: var(--space-2);
 	}
 	.navitem {
 		display: flex;
@@ -134,6 +379,22 @@
 	:global(:root[data-theme='dark']) .ic {
 		background: #12161b;
 	}
+	:global(:root[data-theme='dark']) .structure-tools,
+	:global(:root[data-theme='dark']) .create-row {
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0)),
+			#0a0c0e;
+		border-color: rgba(255, 255, 255, 0.1);
+	}
+	:global(:root[data-theme='dark']) .tool-add,
+	:global(:root[data-theme='dark']) .mini-add {
+		background: #080a0c;
+		border-color: rgba(255, 255, 255, 0.1);
+	}
+	:global(:root[data-theme='dark']) .create-row input {
+		background: #050607;
+		border-color: rgba(255, 255, 255, 0.12);
+	}
 	.ic.done {
 		color: var(--brand-500);
 	}
@@ -164,6 +425,46 @@
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		}
+		.structure-tools,
+		.create-row {
+			flex: none;
+			min-width: 220px;
+			margin-bottom: 0;
+		}
+		.mod-row {
+			flex: none;
+			margin: 0 var(--space-1) 0 0;
+			gap: var(--space-1);
+		}
+		.mini-add span,
+		.tool-add span {
+			display: none;
+		}
+		.sidebar.editable {
+			display: block;
+			overflow: visible;
+		}
+		.sidebar.editable .structure-tools,
+		.sidebar.editable .create-row,
+		.sidebar.editable .mod-row,
+		.sidebar.editable .navitem {
+			width: 100%;
+			min-width: 0;
+		}
+		.sidebar.editable .structure-tools,
+		.sidebar.editable .create-row {
+			margin-bottom: var(--space-3);
+		}
+		.sidebar.editable .mod-row {
+			margin: var(--space-4) 0 var(--space-2);
+		}
+		.sidebar.editable .navitem {
+			margin-bottom: var(--space-1);
+		}
+		.sidebar.editable .mini-add span,
+		.sidebar.editable .tool-add span {
+			display: inline;
 		}
 		.navitem {
 			flex: none;
