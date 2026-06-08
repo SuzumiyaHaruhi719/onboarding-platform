@@ -454,7 +454,7 @@
 					>
 						<div class="gutter left">
 							<div class="menu-anchor">
-								<button class="g-btn" title="在此后添加" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
+								<button class="g-btn" title="在此后添加" aria-label="在此处下方添加内容块" onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
 								{#if menuAt === block.id}
 									<BlockMenu onpick={(t) => pickType(block.id, t)} onclose={() => (menuAt = null)} />
 								{/if}
@@ -485,8 +485,8 @@
 
 						<div class="gutter right">
 							<span class="badge">{TYPE_LABEL[block.type]}</span>
-							<button class="g-btn" title="编辑" onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /></button>
-							<button class="g-btn danger" title="删除" onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /></button>
+							<button class="g-btn" title="编辑" aria-label="编辑内容块" onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /></button>
+							<button class="g-btn danger" title="删除" aria-label="删除内容块" onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /></button>
 						</div>
 
 						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
@@ -534,8 +534,8 @@
 							<div class="qrow">
 								<span class="badge">{q.type === 'single' ? '单选' : q.type === 'multiple' ? '多选' : '判断'}</span>
 								<span class="qq">{q.question}</span>
-								<button class="g-btn" title="编辑" onclick={() => (editingQuizId = q.id)}><Icon name="pencil" size={15} /></button>
-								<button class="g-btn danger" title="删除" onclick={() => deleteQuiz(q.id)} disabled={busy}><Icon name="trash-2" size={15} /></button>
+								<button class="g-btn" title="编辑" aria-label="编辑题目" onclick={() => (editingQuizId = q.id)}><Icon name="pencil" size={15} /></button>
+								<button class="g-btn danger" title="删除" aria-label="删除题目" onclick={() => deleteQuiz(q.id)} disabled={busy}><Icon name="trash-2" size={15} /></button>
 							</div>
 						{/if}
 					{/each}
