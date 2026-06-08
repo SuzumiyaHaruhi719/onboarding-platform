@@ -20,18 +20,18 @@
 </script>
 
 <section class="pick">
-	<p class="eyebrow"><span class="dot"></span>{i18n().t('app.title')}</p>
-	<h1>{i18n().t('role.pick')}</h1>
-	<p class="sub">{i18n().t('role.pick.sub')}</p>
+	<p class="eyebrow rise-in"><span class="dot"></span>{i18n().t('app.title')}</p>
+	<h1 class="rise-in" style="animation-delay: 60ms">{i18n().t('role.pick')}</h1>
+	<p class="sub rise-in" style="animation-delay: 120ms">{i18n().t('role.pick.sub')}</p>
 
 	<div class="cards">
-		<button class="role-card" onclick={() => pick('learner')} disabled={busy}>
+		<button class="role-card rise-in" style="animation-delay: 190ms" onclick={() => pick('learner')} disabled={busy}>
 			<span class="chip"><Icon name="graduation-cap" size={28} /></span>
 			<h3>{i18n().t('role.learner')}</h3>
 			<p>{i18n().t('role.learner.desc')}</p>
 			<span class="go">{i18n().t('learn.continue')} <Icon name="arrow-right" size={16} /></span>
 		</button>
-		<button class="role-card" onclick={() => pick('editor')} disabled={busy}>
+		<button class="role-card rise-in" style="animation-delay: 250ms" onclick={() => pick('editor')} disabled={busy}>
 			<span class="chip"><Icon name="square-pen" size={28} /></span>
 			<h3>{i18n().t('role.editor')}</h3>
 			<p>{i18n().t('role.editor.desc')}</p>
@@ -98,7 +98,7 @@
 	.role-card:hover:not(:disabled) {
 		box-shadow: var(--shadow-lg);
 		transform: translateY(-3px);
-		border-color: var(--brand-300);
+		border-color: var(--border-strong);
 	}
 	.role-card:disabled {
 		opacity: 0.6;

@@ -86,16 +86,18 @@
 
 <div class="reader">
 	<article class="content">
-		<p class="eyebrow"><span class="dot"></span>{i18n().t('learn.eyebrow')}</p>
-		<h1>{section.title}</h1>
-		{#each section.blocks as block (block.id)}
-			<BlockRenderer
-				{block}
-				quizzes={section.quizzes}
-				sectionId={section.id}
-				onintervals={onIntervals}
-				onpassed={onPassed}
-			/>
+		<p class="eyebrow rise-in"><span class="dot"></span>{i18n().t('learn.eyebrow')}</p>
+		<h1 class="rise-in" style="animation-delay: 55ms">{section.title}</h1>
+		{#each section.blocks as block, i (block.id)}
+			<div class="rise-in" style="animation-delay: {110 + Math.min(i, 8) * 45}ms">
+				<BlockRenderer
+					{block}
+					quizzes={section.quizzes}
+					sectionId={section.id}
+					onintervals={onIntervals}
+					onpassed={onPassed}
+				/>
+			</div>
 		{/each}
 		<div class="end-spacer"></div>
 	</article>

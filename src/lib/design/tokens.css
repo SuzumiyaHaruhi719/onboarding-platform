@@ -37,6 +37,8 @@
 	--surface-subtle: #f0f1f3;
 	--surface-hover: #edeef0;
 	--surface-active: #e5e7eb;
+	/* 半透明导航底色 — 让 backdrop-blur 形成毛玻璃质感(GLP) */
+	--nav-bg: rgba(255, 255, 255, 0.72);
 
 	/* 边框 */
 	--border-default: #dde3ea;
@@ -159,6 +161,8 @@
 	--surface-subtle: #282f3a;
 	--surface-hover: #2e3642;
 	--surface-active: #353e4c;
+	/* GLP-dark 导航底色:半透明深灰 + blur(10px),无氛围光 */
+	--nav-bg: rgba(15, 17, 21, 0.72);
 
 	--border-default: #2e3542;
 	--border-subtle: #252c38;

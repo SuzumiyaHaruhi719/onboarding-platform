@@ -58,8 +58,9 @@
 		height: 100%;
 		width: 100%;
 		transform-origin: left center;
+		/* Functional brand accent (like a chart line / focus ring) — flat, no glow
+		 * per GLP-dark (no colored box-shadow). */
 		background: linear-gradient(90deg, var(--brand-500), var(--accent-emerald));
-		box-shadow: 0 0 8px var(--brand-300);
 		will-change: transform;
 	}
 	@media (prefers-reduced-motion: no-preference) {

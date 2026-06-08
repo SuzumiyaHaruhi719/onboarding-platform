@@ -58,9 +58,10 @@
 		align-items: center;
 		gap: var(--space-2);
 		padding: 0 var(--content-padding-x);
-		background: var(--surface-elevated);
+		background: var(--nav-bg);
 		border-bottom: 1px solid var(--border-default);
-		backdrop-filter: blur(10px);
+		backdrop-filter: blur(16px) saturate(1.4);
+		-webkit-backdrop-filter: blur(16px) saturate(1.4);
 	}
 	.logo {
 		color: var(--text-brand);

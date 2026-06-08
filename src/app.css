@@ -105,6 +105,28 @@ button:active:not(:disabled) {
 		animation-duration: 240ms;
 		animation-timing-function: var(--ease-out);
 	}
+
+	/* Content entrance: fade + rise from below (hierarchy-motion: deeper = enters
+	 * from below). transform+opacity only → no reflow/CLS. `both` fill keeps the
+	 * element hidden during its stagger delay so there's no pre-paint flash.
+	 * Under reduced-motion this whole block is absent, so content shows instantly. */
+	@keyframes rise-in {
+		from {
+			opacity: 0;
+			transform: translateY(14px);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+	.rise-in {
+		/* `backwards` (not `both`): hide during the stagger delay, but DON'T retain
+		 * the end transform afterward — otherwise the fill would override :hover
+		 * lifts on cards/buttons. After it finishes, normal CSS (incl. :hover) wins. */
+		animation: rise-in 460ms var(--ease-out) backwards;
+		will-change: transform, opacity;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
