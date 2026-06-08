@@ -5,10 +5,11 @@
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
 
 	const orderedIds = $derived(data.modules.flatMap((m) => m.sections.map((s) => s.id)));
+	const editable = $derived(data.role === 'editor');
 </script>
 
 <div class="three">
-	<Sidebar modules={data.modules} progress={data.progress} {orderedIds} />
+	<Sidebar modules={data.modules} progress={data.progress} {orderedIds} {editable} />
 	<div class="center">
 		{@render children()}
 	</div>

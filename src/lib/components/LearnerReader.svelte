@@ -4,6 +4,7 @@
 	import ProgressRing from '$lib/components/ProgressRing.svelte';
 	import ContinueButton from '$lib/components/ContinueButton.svelte';
 	import RequirementChecklist from '$lib/components/RequirementChecklist.svelte';
+	import ReadingProgress from '$lib/components/ReadingProgress.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { useI18n } from '$lib/i18n/context';
 	import { startHeartbeat, type HeartbeatController } from '$lib/anti-skip/heartbeat';
@@ -80,6 +81,8 @@
 		}
 	}
 </script>
+
+<ReadingProgress />
 
 <div class="reader">
 	<article class="content">

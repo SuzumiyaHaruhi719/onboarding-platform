@@ -6,11 +6,13 @@
 	let {
 		modules,
 		progress,
-		orderedIds
+		orderedIds,
+		editable = false
 	}: {
 		modules: ModuleWithSections[];
 		progress: Record<string, string>;
 		orderedIds: string[];
+		editable?: boolean;
 	} = $props();
 
 	function isUnlocked(id: string): boolean {
@@ -25,10 +27,14 @@
 		<div class="mod">{m.title}</div>
 		{#each m.sections as s (s.id)}
 			{@const done = progress[s.id] === 'completed'}
-			{@const open = isUnlocked(s.id)}
+			{@const open = editable || isUnlocked(s.id)}
 			{#if open}
 				<a class="navitem" class:active={page.params.sectionId === s.id} href={`/learn/${s.id}`}>
-					<span class="ic" class:done><Icon name={done ? 'circle-check' : 'circle'} size={16} /></span>
+					{#if editable}
+						<span class="ic"><Icon name="file-text" size={15} /></span>
+					{:else}
+						<span class="ic" class:done><Icon name={done ? 'circle-check' : 'circle'} size={16} /></span>
+					{/if}
 					<span class="title">{s.title}</span>
 				</a>
 			{:else}
