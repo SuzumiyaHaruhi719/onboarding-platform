@@ -243,7 +243,8 @@
 			if (!s?.ok) {
 				stopTimer();
 				ingestBusy = false;
-				ingestStatus = '状态查询失败';
+				ingestStage = 'error';
+				ingestStatus = '转译任务丢失(服务可能重启过),请重新上传';
 				return;
 			}
 			ingestStage = s.status;
