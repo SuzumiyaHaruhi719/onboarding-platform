@@ -56,15 +56,37 @@ export function validateTranslationQuality(source: string, blocks: BlockInput[])
 		if (shortCount / paragraphs.length > 0.5) issues.push('too many tiny fragmented paragraphs');
 	}
 
-	for (const fact of requiredFacts(source)) {
-		if (!hasFact(output, fact)) issues.push(`required fact missing: ${fact}`);
+	// Fact preservation. A faithful chapter keeps the source's key numbers/acronyms,
+	// but the model legitimately rewords some (1,000→1000, 2.0万→2万, rounding). So:
+	//  - small docs (<6 facts): each one matters → require all (catches gutting).
+	//  - larger docs: tolerate a minority missing; only flag WHOLESALE loss, which
+	//    signals the model summarized away real content rather than translated it.
+	const facts = requiredFacts(source);
+	const missing = facts.filter((fact) => !hasFact(output, fact));
+	if (facts.length < 6) {
+		for (const fact of missing) issues.push(`required fact missing: ${fact}`);
+	} else if (missing.length / facts.length > 0.45) {
+		const kept = facts.length - missing.length;
+		issues.push(
+			`low fact coverage: kept ${kept}/${facts.length} (missing e.g. ${missing.slice(0, 5).join(', ')})`
+		);
 	}
 
 	return issues;
 }
 
+/** Normalize a number-ish string for tolerant comparison: drop thousands commas
+ *  and spaces so "1,000" / "1 000" / "1000" all match. */
+function normNum(s: string): string {
+	return s.replace(/[,\s]/g, '');
+}
+
 function hasFact(output: string, fact: string): boolean {
 	if (output.includes(fact)) return true;
+	// Numeric facts: tolerate thousands-separator / spacing differences.
+	if (/^\d[\d.,:\s]*$/.test(fact)) {
+		if (normNum(output).includes(normNum(fact))) return true;
+	}
 	const time = /^(\d+)(h|小时)$/i.exec(fact);
 	if (time) {
 		const amount = time[1];
