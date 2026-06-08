@@ -41,6 +41,8 @@
 	let pending = $state<PendingInsert | null>(null);
 	let dragId = $state<string | null>(null);
 	let overId = $state<string | null>(null);
+	let dragInsertType = $state<BlockInput['type'] | null>(null);
+	let dropTarget = $state<string | null>(null);
 	let insertTarget = $state<string>('end');
 	let newModuleTitle = $state('');
 	let newSectionTitle = $state('');
@@ -125,6 +127,11 @@
 		return index >= 0 && block
 			? `${tx(`第 ${index + 1} 块之后`, `After block ${index + 1}`)} · ${typeLabel(block.type)}`
 			: tx('所选位置', 'Selected position');
+	}
+	function dropZoneLabel(key: string): string {
+		return dragInsertType
+			? `${tx('松手插入', 'Drop to insert')} ${typeLabel(dragInsertType)} · ${insertionLabel(key)}`
+			: insertionLabel(key);
 	}
 	const currentInsertionLabel = $derived(insertionLabel(insertTarget));
 	const resolvedPendingPosition = $derived(pending?.source === 'side' ? insertPosition : (pending?.at ?? 'end'));
@@ -213,10 +220,41 @@
 		menuAt = null;
 		pending = { at: insertPosition, type, source: 'side' };
 	}
+	function isSideType(value: string | null | undefined): value is BlockInput['type'] {
+		return SIDE_TYPES.some((t) => t.type === value);
+	}
+	function beginInsertDrag(e: DragEvent, type: BlockInput['type']): void {
+		dragInsertType = type;
+		dropTarget = insertTarget;
+		e.dataTransfer?.setData('application/x-block-type', type);
+		e.dataTransfer?.setData('text/plain', type);
+		if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
+	}
+	function endInsertDrag(): void {
+		dragInsertType = null;
+		dropTarget = null;
+	}
+	function onInsertDragOver(e: DragEvent, target: string): void {
+		if (!dragInsertType && !isSideType(e.dataTransfer?.getData('application/x-block-type'))) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+		dropTarget = target;
+	}
+	function onInsertDrop(e: DragEvent, target: string): void {
+		const type = dragInsertType ?? e.dataTransfer?.getData('application/x-block-type');
+		if (!isSideType(type)) return;
+		e.preventDefault();
+		insertTarget = target;
+		pending = { at: posFrom(target), type, source: 'canvas' };
+		menuAt = null;
+		editingId = null;
+		endInsertDrag();
+	}
 	function clearTransientEditingState(): void {
 		pending = null;
 		menuAt = null;
 		editingId = null;
+		endInsertDrag();
 		insertTarget = 'end';
 	}
 
@@ -605,7 +643,7 @@
 		</div>
 	{/if}
 
-	<div class="canvas" class:editing={!preview}>
+	<div class="canvas" class:editing={!preview} class:insert-dragging={!!dragInsertType}>
 		<article class="content">
 			<p class="eyebrow"><span class="dot"></span>{section.title || tx('未命名章节', 'Untitled section')}</p>
 
@@ -617,6 +655,31 @@
 				{/each}
 				{#if section.blocks.length === 0}<p class="muted">{tx('本节暂无内容。', 'This section has no content yet.')}</p>{/if}
 			{:else}
+				{#if dragInsertType || dropTarget === 'start'}
+					<button
+						type="button"
+						class="insert-drop-zone"
+						class:active={dropTarget === 'start'}
+						ondragover={(e) => onInsertDragOver(e, 'start')}
+						ondrop={(e) => onInsertDrop(e, 'start')}
+						ondragleave={() => { if (dropTarget === 'start') dropTarget = null; }}
+						onclick={() => (insertTarget = 'start')}
+					>
+						<span class="drop-line"></span>
+						<span>{dropZoneLabel('start')}</span>
+					</button>
+				{/if}
+				{#if pending?.source === 'canvas' && (pending.at === 'start' || section.blocks.length === 0)}
+					<div class="inserting">
+						{#if pending.type === 'richtext'}
+							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
+						{:else if pending.type === 'quiz'}
+							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
+						{:else}
+							<BlockForm presetType={pending?.type} lockType onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+						{/if}
+					</div>
+				{/if}
 				<div class="word-shell">
 					{#key documentEditorKey}
 						<LazyRichTextEditor
@@ -644,18 +707,6 @@
 								<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 							</label>
 						</div>
-					</div>
-				{/if}
-
-				{#if pending?.source === 'canvas' && (pending.at === 'start' || section.blocks.length === 0)}
-					<div class="inserting">
-						{#if pending.type === 'richtext'}
-							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
-						{:else if pending.type === 'quiz'}
-							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
-						{:else}
-							<BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
-						{/if}
 					</div>
 				{/if}
 
@@ -737,15 +788,43 @@
 								{:else if pending.type === 'quiz'}
 									<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
 								{:else}
-									<BlockForm presetType={pending?.type} onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
+									<BlockForm presetType={pending?.type} lockType onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
 								{/if}
 							</div>
 						{/if}
 					</div>
+					{#if !isDocumentBlock(block) && (dragInsertType || dropTarget === block.id)}
+						<button
+							type="button"
+							class="insert-drop-zone"
+							class:active={dropTarget === block.id}
+							ondragover={(e) => onInsertDragOver(e, block.id)}
+							ondrop={(e) => onInsertDrop(e, block.id)}
+							ondragleave={() => { if (dropTarget === block.id) dropTarget = null; }}
+							onclick={() => (insertTarget = block.id)}
+						>
+							<span class="drop-line"></span>
+							<span>{dropZoneLabel(block.id)}</span>
+						</button>
+					{/if}
 				{/each}
 
 				{#if section.blocks.length > 0}
 					<div class="add-end menu-anchor">
+						{#if dragInsertType || dropTarget === 'end'}
+							<button
+								type="button"
+								class="insert-drop-zone end"
+								class:active={dropTarget === 'end'}
+								ondragover={(e) => onInsertDragOver(e, 'end')}
+								ondrop={(e) => onInsertDrop(e, 'end')}
+								ondragleave={() => { if (dropTarget === 'end') dropTarget = null; }}
+								onclick={() => (insertTarget = 'end')}
+							>
+								<span class="drop-line"></span>
+								<span>{dropZoneLabel('end')}</span>
+							</button>
+						{/if}
 						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}><Icon name="plus" size={16} /> {tx('添加内容块', 'Add block')}</button>
 						{#if menuAt === 'end'}
 							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
@@ -757,7 +836,7 @@
 								{:else if pending.type === 'quiz'}
 									<QuizForm onsave={(quiz) => createQuizBlock(quiz, 'end')} oncancel={() => (pending = null)} />
 								{:else}
-									<BlockForm presetType={pending.type} onsave={(b) => createBlock(b, 'end')} oncancel={() => (pending = null)} />
+									<BlockForm presetType={pending.type} lockType onsave={(b) => createBlock(b, 'end')} oncancel={() => (pending = null)} />
 								{/if}
 							</div>
 						{/if}
@@ -835,12 +914,22 @@
 					</div>
 					<div class="module-grid">
 						{#each SIDE_TYPES as t (t.type)}
-							<button class="module-tile" class:active={pending?.type === t.type} onclick={() => pickSideType(t.type)}>
+							<button
+								class="module-tile"
+								class:active={pending?.type === t.type}
+								draggable="true"
+								title={tx('拖到正文中插入', 'Drag into the document to insert')}
+								aria-label={`${t.label()} · ${tx('拖到正文中插入', 'Drag into the document to insert')}`}
+								ondragstart={(e) => beginInsertDrag(e, t.type)}
+								ondragend={endInsertDrag}
+								onclick={() => pickSideType(t.type)}
+							>
 								<span class="tile-icon"><Icon name={t.icon} size={18} /></span>
 								<span>
 									<strong>{t.label()}</strong>
 									<small>{t.desc()}</small>
 								</span>
+								<span class="tile-grip" aria-hidden="true"><Icon name="grip-vertical" size={16} /></span>
 							</button>
 						{/each}
 					</div>
@@ -1143,9 +1232,7 @@
 	.word-shell {
 		margin-top: var(--space-4);
 	}
-	.word-shell ~ .empty,
-	.word-shell ~ .inserting,
-	.word-shell ~ .add-end {
+	.word-shell ~ .empty {
 		display: none;
 	}
 	.sidepanel {
@@ -1386,7 +1473,7 @@
 	}
 	.module-tile {
 		display: grid;
-		grid-template-columns: 40px minmax(0, 1fr);
+		grid-template-columns: 40px minmax(0, 1fr) 18px;
 		align-items: center;
 		gap: var(--space-3);
 		width: 100%;
@@ -1399,8 +1486,11 @@
 			var(--surface-container);
 		color: var(--text-primary);
 		text-align: left;
-		cursor: pointer;
+		cursor: grab;
 		transition: var(--transition-fast);
+	}
+	.module-tile:active {
+		cursor: grabbing;
 	}
 	.module-tile:nth-child(1) {
 		--tile-accent: var(--accent-blue);
@@ -1442,6 +1532,12 @@
 		background:
 			linear-gradient(90deg, var(--tile-bg, var(--brand-50)), transparent 60%),
 			var(--surface-elevated);
+	}
+	.tile-grip {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-tertiary);
 	}
 	.tile-icon {
 		width: 40px;
@@ -1693,6 +1789,60 @@
 	.add-end {
 		display: block;
 		margin-top: var(--space-3);
+	}
+	.insert-drop-zone {
+		width: 100%;
+		min-height: 18px;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		align-items: center;
+		gap: var(--space-3);
+		margin: var(--space-1) 0 var(--space-2);
+		padding: 0 var(--space-3);
+		border: 1px solid transparent;
+		border-radius: var(--radius-lg);
+		background: transparent;
+		color: transparent;
+		font-size: var(--text-xs);
+		font-weight: 800;
+		cursor: copy;
+		transition:
+			min-height 180ms ease,
+			padding 180ms ease,
+			border-color var(--transition-fast),
+			background var(--transition-fast),
+			color var(--transition-fast);
+	}
+	.canvas.insert-dragging .insert-drop-zone,
+	.insert-drop-zone.active {
+		min-height: 68px;
+		padding: var(--space-3);
+		border-color: color-mix(in srgb, var(--accent-violet) 48%, var(--border-default));
+		background:
+			linear-gradient(90deg, transparent, var(--accent-violet-bg), transparent),
+			var(--surface-elevated);
+		color: var(--accent-violet);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 18%, transparent);
+	}
+	.insert-drop-zone.active {
+		min-height: 88px;
+		border-style: solid;
+		box-shadow:
+			0 18px 42px color-mix(in srgb, var(--accent-violet) 16%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 26%, transparent);
+	}
+	.drop-line {
+		height: 2px;
+		border-radius: var(--radius-full);
+		background: currentColor;
+		opacity: 0.75;
+	}
+	.insert-drop-zone::after {
+		content: '';
+		height: 2px;
+		border-radius: var(--radius-full);
+		background: currentColor;
+		opacity: 0.75;
 	}
 	.add-end-btn {
 		display: flex;
