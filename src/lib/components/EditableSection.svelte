@@ -36,6 +36,11 @@
 	let structureBusy = $state(false);
 	let documentInsertRequest = $state<{ id: number; content: Content } | null>(null);
 	let documentInsertId = 0;
+	let topAiInput = $state<HTMLInputElement>();
+	let topMediaInput = $state<HTMLInputElement>();
+	let imageInput = $state<HTMLInputElement>();
+	let videoInput = $state<HTMLInputElement>();
+	let sideAiInput = $state<HTMLInputElement>();
 
 	let toast = $state<{ msg: string; undo?: () => void; actionLabel?: string } | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -145,6 +150,9 @@
 	function insertIntoDocument(type: BlockInput['type']): void {
 		documentInsertRequest = { id: ++documentInsertId, content: documentInsertContent(type) };
 		showToast(tx('已插入到正文编辑器，请直接修改后保存', 'Inserted into the document editor. Edit it there, then save.'));
+	}
+	function openPicker(input: HTMLInputElement | undefined): void {
+		input?.click();
 	}
 	function clearTransientEditingState(): void {
 		toast = null;
@@ -526,14 +534,14 @@
 			<a class="btn-sm ghost preview-link" href={`/learn/${section.id}?view=learner`}>
 				<Icon name="graduation-cap" size={15} /> {tx('真实学生视图', 'Live learner view')}
 			</a>
-			<label class="btn-sm ghost upload ai-upload" class:busy={ingestBusy}>
+			<button type="button" class="btn-sm ghost upload ai-upload" class:busy={ingestBusy} disabled={ingestBusy} aria-label={tx('上传文件并进行 AI 转译', 'Upload a file for AI translation')} onclick={() => openPicker(topAiInput)}>
 				{#if ingestBusy}{tx('AI 转译中…', 'AI translating...')}{:else}<Icon name="sparkles" size={15} /> {tx('AI 转译文件', 'AI translate file')}{/if}
-				<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
-			</label>
-			<label class="btn-sm ghost upload video-upload" class:busy={uploading}>
+			</button>
+			<input bind:this={topAiInput} type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
+			<button type="button" class="btn-sm ghost upload video-upload" class:busy={uploading} disabled={uploading} aria-label={tx('插入图片或视频到正文编辑器', 'Insert image or video into the editor')} onclick={() => openPicker(topMediaInput)}>
 				{#if uploading}{tx('上传中…', 'Uploading...')}{:else}<Icon name="image" size={15} /> {tx('插入媒体', 'Insert media')}{/if}
-				<input type="file" accept="image/*,video/*" hidden onchange={onMediaFile} disabled={uploading} />
-			</label>
+			</button>
+			<input bind:this={topMediaInput} type="file" accept="image/*,video/*" hidden onchange={onMediaFile} disabled={uploading} />
 		</div>
 	</div>
 
@@ -596,7 +604,7 @@
 				<section class="panel-card hero-panel">
 					<div class="panel-kicker"><Icon name="panel-right" size={15} /> {tx('编辑工作台', 'Editor workspace')}</div>
 					<h2>{tx('创建与插入', 'Create and insert')}</h2>
-					<p>{tx('正文像文档一样编辑；章节、模块和结构化内容都从这里添加。', 'Edit body text like a document. Add sections, modules, and structured content here.')}</p>
+					<p>{tx('正文像文档一样编辑；章节、模块和插入工具都从这里添加。', 'Edit body text like a document. Add sections, modules, and insert tools here.')}</p>
 				</section>
 
 				<section class="panel-card">
@@ -655,18 +663,18 @@
 							<p>{tx('图片、视频和 AI 转译都进入同一个正文编辑器', 'Images, videos, and AI translations stay in the same editor')}</p>
 						</div>
 					</div>
-					<label class="wide-action" class:busy={uploading}>
+					<button type="button" class="wide-action" class:busy={uploading} disabled={uploading} aria-label={tx('插入图片到正文编辑器', 'Insert image into the editor')} onclick={() => openPicker(imageInput)}>
 						<Icon name="image" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('插入图片', 'Insert image')}
-						<input type="file" accept="image/*" hidden onchange={onMediaFile} disabled={uploading} />
-					</label>
-					<label class="wide-action" class:busy={uploading}>
+					</button>
+					<input bind:this={imageInput} type="file" accept="image/*" hidden onchange={onMediaFile} disabled={uploading} />
+					<button type="button" class="wide-action" class:busy={uploading} disabled={uploading} aria-label={tx('插入视频到正文编辑器', 'Insert video into the editor')} onclick={() => openPicker(videoInput)}>
 						<Icon name="video" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('插入视频', 'Insert video')}
-						<input type="file" accept="video/*" hidden onchange={onMediaFile} disabled={uploading} />
-					</label>
-					<label class="wide-action" class:busy={ingestBusy}>
+					</button>
+					<input bind:this={videoInput} type="file" accept="video/*" hidden onchange={onMediaFile} disabled={uploading} />
+					<button type="button" class="wide-action" class:busy={ingestBusy} disabled={ingestBusy} aria-label={tx('AI 转译文件并插入正文编辑器', 'AI translate a file into the editor')} onclick={() => openPicker(sideAiInput)}>
 						<Icon name="sparkles" size={16} /> {ingestBusy ? tx('AI 转译中…', 'AI translating...') : tx('AI 转译 PDF / PPTX / Word', 'AI translate PDF / PPTX / Word')}
-						<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
-					</label>
+					</button>
+					<input bind:this={sideAiInput} type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 				</section>
 			</aside>
 		{/if}
@@ -683,7 +691,7 @@
 {#if showPreview}
 	<div class="modal-bg" transition:fade={{ duration: 200 }}><div class="modal" role="dialog" aria-modal="true" aria-label={tx('AI 转译预览', 'AI translation preview')} tabindex="-1" in:scale={{ start: 0.96, opacity: 0, duration: 320, easing: cubicOut }} out:scale={{ start: 0.98, opacity: 0, duration: 180 }}>
 		<header class="modal-head">
-			<strong>{tx(`AI 转译预览 · ${previewBlocks.length} 块`, `AI translation preview · ${previewBlocks.length} blocks`)}</strong>
+			<strong>{tx(`AI 转译预览 · ${previewBlocks.length} 段`, `AI translation preview · ${previewBlocks.length} sections`)}</strong>
 			<span class="badge">{ingestUsedAgent ? `qwen3.7-plus · ${ingestTokens} tokens` : tx('本地解析', 'Local parser')}</span>
 		</header>
 		<div class="modal-body">
@@ -1204,6 +1212,11 @@
 		border-color: var(--accent-blue);
 		color: var(--accent-blue);
 		background: var(--accent-blue-bg);
+	}
+	.wide-action:focus-visible,
+	.upload:focus-visible {
+		outline: 3px solid color-mix(in srgb, var(--accent-blue) 34%, transparent);
+		outline-offset: 2px;
 	}
 	.wide-action.busy {
 		opacity: 0.65;

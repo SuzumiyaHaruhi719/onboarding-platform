@@ -119,7 +119,7 @@
 		</div>
 		<div class="stat">
 			<span class="stat-num">{blockCount}</span>
-			<span class="stat-label">{tx('内容块', 'Blocks')}</span>
+			<span class="stat-label">{tx('文档内容', 'Content')}</span>
 		</div>
 		<div class="stat">
 			<span class="stat-num">{quizCount}</span>
@@ -192,7 +192,7 @@
 									<span class="sec-title">{s.title}</span>
 									<span class="sec-meta">
 										<span>{tx(`${Math.round(s.minDwellMs / 1000)}s 最短阅读`, `${Math.round(s.minDwellMs / 1000)}s min read`)}</span>
-										<span>{tx(`${s.blockCount} 内容块`, `${s.blockCount} blocks`)}</span>
+										<span>{tx(`${s.blockCount} 段内容`, `${s.blockCount} content sections`)}</span>
 										<span>{tx(`${s.quizCount} 题目`, `${s.quizCount} quizzes`)}</span>
 									</span>
 								</span>
@@ -207,7 +207,7 @@
 								</a>
 								<button
 									class="icon-btn danger"
-									onclick={() => requestDelete('section', s.id, s.title, tx('将删除本章节的内容块、题目和学习进度。', 'This deletes the section blocks, quizzes, and learning progress.'))}
+									onclick={() => requestDelete('section', s.id, s.title, tx('将删除本章节的文档内容、题目和学习进度。', 'This deletes the section content, quizzes, and learning progress.'))}
 									disabled={busy}
 									aria-label={tx(`删除 ${s.title}`, `Delete ${s.title}`)}
 									title={tx('删除', 'Delete')}

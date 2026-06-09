@@ -11,7 +11,7 @@
 	import { startHeartbeat, type HeartbeatController } from '$lib/anti-skip/heartbeat';
 	import type { VideoInterval, SectionView } from '$lib/content/types';
 
-	let { section }: { section: SectionView } = $props();
+	let { section, preview = false }: { section: SectionView; preview?: boolean } = $props();
 	const i18n = useI18n();
 
 	let complete = $state(false);
@@ -29,6 +29,7 @@
 		reasons: string[];
 		nextId: string | null;
 	} | null> {
+		if (preview) return { complete: false, reasons: ['scroll'], nextId: null };
 		return fetch('/api/progress/complete', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -75,7 +76,7 @@
 		complete = false;
 		reasons = ['scroll'];
 
-		hb = startHeartbeat({ sectionId });
+		if (!preview) hb = startHeartbeat({ sectionId });
 		void refresh();
 		const poll = setInterval(refresh, 4500);
 

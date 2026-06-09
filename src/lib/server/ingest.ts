@@ -20,7 +20,7 @@ export interface IngestJob {
 	startedAt: number;
 	durationMs: number;
 	events: IngestEvent[];
-	/** Converted blocks awaiting user-chosen insertion (NOT yet saved). */
+	/** Converted document content awaiting user-chosen insertion (NOT yet saved). */
 	blocks: BlockInput[];
 	error?: string;
 	errorEn?: string;
@@ -76,7 +76,7 @@ async function run(jobId: string, filename: string, buf: Buffer): Promise<void> 
 					blocks = result.blocks;
 					job.tokens = result.tokens;
 					job.usedAgent = true;
-					log(`AI 转译完成 · ${blocks.length} 块 · ${result.tokens} tokens`, `AI translation complete · ${blocks.length} blocks · ${result.tokens} tokens`);
+					log(`AI 转译完成 · ${blocks.length} 段 · ${result.tokens} tokens`, `AI translation complete · ${blocks.length} sections · ${result.tokens} tokens`);
 				} else {
 					log('AI 未返回有效内容，改用本地解析', 'AI returned no usable content. Falling back to local parsing');
 				}
@@ -89,7 +89,7 @@ async function run(jobId: string, filename: string, buf: Buffer): Promise<void> 
 		}
 		if (blocks.length === 0) {
 			blocks = localFallback(markdown, cleanContent);
-			log(`本地解析完成 · ${blocks.length} 块`, `Local parsing complete · ${blocks.length} blocks`);
+			log(`本地解析完成 · ${blocks.length} 段`, `Local parsing complete · ${blocks.length} sections`);
 		}
 
 		// Collapse the converted content into a single editable Markdown rich-text

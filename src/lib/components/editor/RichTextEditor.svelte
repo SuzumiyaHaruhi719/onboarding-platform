@@ -11,7 +11,7 @@
 		insertRequest = null,
 		onsave,
 		oncancel
-	}: { initial?: string; insertRequest?: { id: number; content: Content } | null; onsave: (markdown: string) => void; oncancel: () => void } = $props();
+	}: { initial?: string; insertRequest?: { id: number; content: Content } | null; onsave: (markdown: string) => void | Promise<void>; oncancel: () => void } = $props();
 
 	let element: HTMLDivElement;
 	let editor: Editor | null = null;
@@ -19,6 +19,7 @@
 	let err = $state('');
 	let linkOpen = $state(false);
 	let linkUrl = $state('');
+	let saving = $state(false);
 	let lastInsertRequestId = 0;
 	const startMarkdown = untrack(() => initial);
 	const i18n = useI18n();
@@ -144,20 +145,27 @@
 		if (e.key === 'Escape') linkOpen = false;
 	}
 
-	function save(): void {
-		if (!editor) return;
+	async function save(): Promise<void> {
+		if (!editor || saving) return;
 		const html = editor.getHTML();
 		if (!editor.getText().trim() && !/<(img|video)\b/i.test(html)) {
 			err = tx('内容不能为空，请先输入文字', 'Content cannot be empty. Add some text first.');
 			return;
 		}
-		onsave(html);
+		saving = true;
+		try {
+			await onsave(html);
+		} catch {
+			err = tx('保存失败，请稍后重试', 'Save failed. Please try again.');
+		} finally {
+			saving = false;
+		}
 	}
 
 	function onWrapKeydown(e: KeyboardEvent): void {
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
 			e.preventDefault();
-			save();
+			void save();
 		}
 	}
 </script>
@@ -201,8 +209,8 @@
 		</div>
 		<div class="ribbon-spacer"></div>
 		<div class="ribbon-save">
-			<button class="btn primary" onclick={save}>{tx('保存', 'Save')}</button>
-			<button class="btn ghost" onclick={oncancel}>{tx('取消', 'Cancel')}</button>
+			<button class="btn primary" onclick={() => void save()} disabled={saving}>{saving ? tx('保存中…', 'Saving...') : tx('保存', 'Save')}</button>
+			<button class="btn ghost" onclick={oncancel} disabled={saving}>{tx('取消', 'Cancel')}</button>
 		</div>
 	</div>
 

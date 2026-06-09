@@ -30,11 +30,11 @@
 <div
 	class="menu"
 	role="menu"
-	aria-label={tx('选择内容块类型', 'Choose content block type')}
+	aria-label={tx('选择插入内容类型', 'Choose insert content type')}
 	transition:scale={{ start: 0.95, opacity: 0, duration: 150, easing: cubicOut }}
 	style="transform-origin: top left;"
 >
-	<div class="menu-title">{tx('添加内容块', 'Add content block')}</div>
+	<div class="menu-title">{tx('插入文档内容', 'Insert document content')}</div>
 	<div class="menu-grid">
 		{#each TYPES as t (t.type)}
 			<button class="menu-item" role="menuitem" onclick={() => onpick(t.type)}>

@@ -157,7 +157,7 @@
 
 	{#if err}<p class="err">{err}</p>{/if}
 	<div class="actions">
-		<button class="btn-primary" onclick={save}>{tx('保存内容块', 'Save block')}</button>
+		<button class="btn-primary" onclick={save}>{tx('保存内容', 'Save content')}</button>
 		<button class="btn-ghost" onclick={oncancel}>{tx('取消', 'Cancel')}</button>
 	</div>
 </div>

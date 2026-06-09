@@ -29,7 +29,7 @@
 			</a>
 		</div>
 	{/if}
-	<LearnerReader section={data.section} />
+	<LearnerReader section={data.section} preview={editorPreview} />
 {/if}
 
 <style>
