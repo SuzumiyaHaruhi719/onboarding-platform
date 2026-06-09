@@ -97,7 +97,19 @@
 		toastTimer = setTimeout(() => (toast = null), 6000);
 	}
 	const textContent = (text: string): JSONContent[] => (text ? [{ type: 'text', text }] : []);
-	const paragraphNode = (text: string): JSONContent => ({ type: 'paragraph', content: textContent(text) });
+	function inlineContent(text: string): JSONContent[] {
+		const nodes: JSONContent[] = [];
+		const bold = /\*\*([^*]+)\*\*/g;
+		let last = 0;
+		for (const match of text.matchAll(bold)) {
+			if (match.index > last) nodes.push({ type: 'text', text: text.slice(last, match.index) });
+			nodes.push({ type: 'text', text: match[1]!, marks: [{ type: 'bold' }] });
+			last = match.index + match[0].length;
+		}
+		if (last < text.length) nodes.push({ type: 'text', text: text.slice(last) });
+		return nodes.length ? nodes : textContent(text);
+	}
+	const paragraphNode = (text: string): JSONContent => ({ type: 'paragraph', content: inlineContent(text) });
 	function documentInsertContent(type: BlockInput['type']): Content {
 		switch (type) {
 			case 'heading':
