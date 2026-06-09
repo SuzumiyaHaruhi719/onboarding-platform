@@ -16,7 +16,16 @@
 
 SvelteKit(Svelte 5 runes)· TypeScript(strict)· Drizzle ORM + better-sqlite3 · Zod(边界校验)· 纯 CSS 变量(双主题设计令牌)· Vitest(核心纯逻辑)· adapter-node。
 
-## 快速开始
+## 快速开始(一键拉起)
+
+clone 下来后**点一下**即可,自动检查 Node、装依赖、建库填种子、起服务并开浏览器:
+
+- **Windows**:双击 `start.cmd`
+- **macOS / Linux**:`./start.sh`(或任意平台 `npm start`)
+
+默认拉起 `http://127.0.0.1:5180/`;**5180 被占用会自动顺延端口并在终端显示**实际地址,再自动用默认浏览器打开。前置只需装好 [Node 20+](https://nodejs.org/)。
+
+### 手动开始(等价步骤)
 
 ```sh
 npm install

@@ -4,6 +4,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
+		"start": "node start.mjs",
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
