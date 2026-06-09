@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
-	import { Editor } from '@tiptap/core';
+	import { Editor, type Content } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
 	import { Markdown } from 'tiptap-markdown';
 	import Icon from '$lib/components/Icon.svelte';
@@ -8,9 +8,10 @@
 
 	let {
 		initial = '',
+		insertRequest = null,
 		onsave,
 		oncancel
-	}: { initial?: string; onsave: (markdown: string) => void; oncancel: () => void } = $props();
+	}: { initial?: string; insertRequest?: { id: number; content: Content } | null; onsave: (markdown: string) => void; oncancel: () => void } = $props();
 
 	let element: HTMLDivElement;
 	let editor: Editor | null = null;
@@ -18,6 +19,7 @@
 	let err = $state('');
 	let linkOpen = $state(false);
 	let linkUrl = $state('');
+	let lastInsertRequestId = 0;
 	const startMarkdown = untrack(() => initial);
 	const i18n = useI18n();
 	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
@@ -43,6 +45,14 @@
 	});
 
 	onDestroy(() => editor?.destroy());
+
+	$effect(() => {
+		const request = insertRequest;
+		if (!editor || !request || request.id === lastInsertRequestId) return;
+		lastInsertRequestId = request.id;
+		editor.chain().focus().insertContent(request.content).run();
+		tick++;
+	});
 
 	function active(name: string, attrs?: Record<string, unknown>): boolean {
 		void tick;

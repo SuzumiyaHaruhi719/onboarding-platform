@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { fade, scale, fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
+	import type { Content } from '@tiptap/core';
 	import { goto, invalidateAll } from '$app/navigation';
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
 	import BlockForm from '$lib/components/editor/BlockForm.svelte';
@@ -25,7 +26,7 @@
 	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	type Pos = 'start' | 'end' | { afterId: string };
-	type PendingInsert = { at: Pos; type: BlockInput['type']; source: 'canvas' | 'side' };
+	type PendingInsert = { at: Pos; type: BlockInput['type'] };
 
 	let preview = $state(false);
 	let busy = $state(false);
@@ -41,19 +42,12 @@
 	let pending = $state<PendingInsert | null>(null);
 	let dragId = $state<string | null>(null);
 	let overId = $state<string | null>(null);
-	let dragInsertType = $state<BlockInput['type'] | null>(null);
-	let dropTarget = $state<string | null>(null);
-	let pointerInsertType = $state<BlockInput['type'] | null>(null);
-	let pointerDragActive = $state(false);
-	let pointerStartX = $state(0);
-	let pointerStartY = $state(0);
-	let pointerX = $state(0);
-	let pointerY = $state(0);
-	let suppressTileClick = $state(false);
 	let insertTarget = $state<string>('end');
 	let newModuleTitle = $state('');
 	let newSectionTitle = $state('');
 	let structureBusy = $state(false);
+	let documentInsertRequest = $state<{ id: number; content: Content } | null>(null);
+	let documentInsertId = 0;
 
 	let toast = $state<{ msg: string; undo?: () => void; actionLabel?: string } | null>(null);
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -129,20 +123,15 @@
 	function insertionLabel(key: string): string {
 		if (key === 'start') return tx('章节开头', 'Section start');
 		if (key === 'end') return tx('章节末尾', 'Section end');
-		const index = section.blocks.findIndex((block) => block.id === key);
-		const block = section.blocks[index];
+		const blocks = section.blocks.filter((block) => !isDocumentBlock(block));
+		const index = blocks.findIndex((block) => block.id === key);
+		const block = blocks[index];
 		return index >= 0 && block
 			? `${tx(`第 ${index + 1} 块之后`, `After block ${index + 1}`)} · ${typeLabel(block.type)}`
 			: tx('所选位置', 'Selected position');
 	}
-	function dropZoneLabel(key: string): string {
-		return dragInsertType
-			? `${tx('松手插入', 'Drop to insert')} ${typeLabel(dragInsertType)} · ${insertionLabel(key)}`
-			: insertionLabel(key);
-	}
 	const currentInsertionLabel = $derived(insertionLabel(insertTarget));
-	const resolvedPendingPosition = $derived(pending?.source === 'side' ? insertPosition : (pending?.at ?? 'end'));
-	const resolvedPendingLabel = $derived(pending?.source === 'side' ? currentInsertionLabel : insertionLabel(keyFromPos(pending?.at ?? 'end')));
+	const resolvedPendingLabel = $derived(insertionLabel(keyFromPos(pending?.at ?? 'end')));
 
 	async function createBlock(input: BlockInput, at: Pos): Promise<void> {
 		busy = true;
@@ -219,96 +208,79 @@
 		}
 	}
 
-	function pickType(at: string, type: BlockInput['type']): void {
-		menuAt = null;
-		pending = { at: posFrom(at), type, source: 'canvas' };
+	async function revealComposer(): Promise<void> {
+		await tick();
+		document.querySelector<HTMLElement>('[data-insert-composer]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 	}
-	function pickSideType(type: BlockInput['type']): void {
-		menuAt = null;
-		pending = { at: insertPosition, type, source: 'side' };
-	}
-	function isSideType(value: string | null | undefined): value is BlockInput['type'] {
-		return SIDE_TYPES.some((t) => t.type === value);
-	}
-	function beginInsertDrag(e: DragEvent, type: BlockInput['type']): void {
-		dragInsertType = type;
-		dropTarget = insertTarget;
-		e.dataTransfer?.setData('application/x-block-type', type);
-		e.dataTransfer?.setData('text/plain', type);
-		if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
-	}
-	function endInsertDrag(): void {
-		dragInsertType = null;
-		dropTarget = null;
-	}
-	function insertionTargetFromPoint(x: number, y: number): string | null {
-		const element = document.elementFromPoint(x, y);
-		return element?.closest<HTMLElement>('[data-insert-target]')?.dataset.insertTarget ?? null;
-	}
-	function beginPointerInsert(e: PointerEvent, type: BlockInput['type']): void {
-		if (e.button !== 0) return;
-		pointerInsertType = type;
-		pointerDragActive = false;
-		suppressTileClick = false;
-		pointerStartX = e.clientX;
-		pointerStartY = e.clientY;
-		pointerX = e.clientX;
-		pointerY = e.clientY;
-		(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-	}
-	function movePointerInsert(e: PointerEvent): void {
-		if (!pointerInsertType) return;
-		pointerX = e.clientX;
-		pointerY = e.clientY;
-		const moved = Math.hypot(pointerX - pointerStartX, pointerY - pointerStartY);
-		if (!pointerDragActive && moved < 6) return;
-		if (!pointerDragActive) {
-			pointerDragActive = true;
-			suppressTileClick = true;
-			dragInsertType = pointerInsertType;
-			dropTarget = insertTarget;
-		}
-		const target = insertionTargetFromPoint(pointerX, pointerY);
-		if (target) dropTarget = target;
-	}
-	function endPointerInsert(e: PointerEvent): void {
-		if (!pointerInsertType) return;
-		(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-		if (pointerDragActive) {
-			const target = insertionTargetFromPoint(e.clientX, e.clientY) ?? dropTarget;
-			if (target) {
-				insertTarget = target;
-				pending = { at: posFrom(target), type: pointerInsertType, source: 'canvas' };
-				menuAt = null;
-				editingId = null;
-			}
-		}
-		pointerInsertType = null;
-		pointerDragActive = false;
-		endInsertDrag();
-		setTimeout(() => (suppressTileClick = false), 0);
-	}
-	function onInsertDragOver(e: DragEvent, target: string): void {
-		if (!dragInsertType && !isSideType(e.dataTransfer?.getData('application/x-block-type'))) return;
-		e.preventDefault();
-		if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-		dropTarget = target;
-	}
-	function onInsertDrop(e: DragEvent, target: string): void {
-		const type = dragInsertType ?? e.dataTransfer?.getData('application/x-block-type');
-		if (!isSideType(type)) return;
-		e.preventDefault();
-		insertTarget = target;
-		pending = { at: posFrom(target), type, source: 'canvas' };
+	function openInlineInsert(at: string, type: BlockInput['type']): void {
 		menuAt = null;
 		editingId = null;
-		endInsertDrag();
+		insertTarget = at;
+		pending = { at: posFrom(at), type };
+		void revealComposer();
+	}
+	function isDocumentInsertType(type: BlockInput['type']): boolean {
+		return ['richtext', 'heading', 'paragraph', 'list', 'quote', 'callout'].includes(type);
+	}
+	const textContent = (text: string) => [{ type: 'text', text }];
+	const paragraphNode = (text: string) => ({ type: 'paragraph', content: textContent(text) });
+	function documentInsertContent(type: BlockInput['type']): Content {
+		switch (type) {
+			case 'heading':
+				return { type: 'heading', attrs: { level: 2 }, content: textContent(tx('新标题', 'New heading')) };
+			case 'paragraph':
+			case 'richtext':
+				return paragraphNode(tx('在这里输入新段落。', 'Type the new paragraph here.'));
+			case 'list':
+				return {
+					type: 'bulletList',
+					content: [
+						{ type: 'listItem', content: [paragraphNode(tx('第一项', 'First item'))] },
+						{ type: 'listItem', content: [paragraphNode(tx('第二项', 'Second item'))] }
+					]
+				};
+			case 'quote':
+				return { type: 'blockquote', content: [paragraphNode(tx('引用内容', 'Quote text'))] };
+			case 'callout':
+				return {
+					type: 'blockquote',
+					content: [
+						{
+							type: 'paragraph',
+							content: [{ type: 'text', text: tx('重点提示', 'Callout title'), marks: [{ type: 'bold' }] }]
+						},
+						paragraphNode(tx('在这里编辑提示内容。', 'Edit the callout body here.'))
+					]
+				};
+			default:
+				return paragraphNode(tx('新内容', 'New content'));
+		}
+	}
+	function insertIntoDocument(type: BlockInput['type']): void {
+		pending = null;
+		menuAt = null;
+		editingId = null;
+		documentInsertRequest = { id: ++documentInsertId, content: documentInsertContent(type) };
+		showToast(tx('已插入到正文编辑器，请直接修改后保存', 'Inserted into the document editor. Edit it there, then save.'));
+	}
+	function pickType(at: string, type: BlockInput['type']): void {
+		if (isDocumentInsertType(type)) {
+			insertIntoDocument(type);
+			return;
+		}
+		openInlineInsert(at, type);
+	}
+	function pickSideType(type: BlockInput['type']): void {
+		if (isDocumentInsertType(type)) {
+			insertIntoDocument(type);
+			return;
+		}
+		openInlineInsert(insertTarget, type);
 	}
 	function clearTransientEditingState(): void {
 		pending = null;
 		menuAt = null;
 		editingId = null;
-		endInsertDrag();
 		insertTarget = 'end';
 	}
 
@@ -502,6 +474,7 @@
 	function isDocumentBlock(block: Block): boolean {
 		return ['richtext', 'heading', 'paragraph', 'list', 'quote', 'callout'].includes(block.type);
 	}
+	const insertableBlocks = $derived(section.blocks.filter((block) => !isDocumentBlock(block)));
 
 	const documentMarkdown = $derived(
 		section.blocks
@@ -697,7 +670,7 @@
 		</div>
 	{/if}
 
-	<div class="canvas" class:editing={!preview} class:insert-dragging={!!dragInsertType}>
+	<div class="canvas" class:editing={!preview}>
 		<article class="content">
 			<p class="eyebrow"><span class="dot"></span>{section.title || tx('未命名章节', 'Untitled section')}</p>
 
@@ -709,23 +682,9 @@
 				{/each}
 				{#if section.blocks.length === 0}<p class="muted">{tx('本节暂无内容。', 'This section has no content yet.')}</p>{/if}
 			{:else}
-				{#if dragInsertType || dropTarget === 'start'}
-					<button
-						type="button"
-						class="insert-drop-zone"
-						class:active={dropTarget === 'start'}
-						data-insert-target="start"
-						ondragover={(e) => onInsertDragOver(e, 'start')}
-						ondrop={(e) => onInsertDrop(e, 'start')}
-						ondragleave={() => { if (dropTarget === 'start') dropTarget = null; }}
-						onclick={() => (insertTarget = 'start')}
-					>
-						<span class="drop-line"></span>
-						<span>{dropZoneLabel('start')}</span>
-					</button>
-				{/if}
-				{#if pending?.source === 'canvas' && (pending.at === 'start' || section.blocks.length === 0)}
-					<div class="inserting">
+				{#if pending && (pending.at === 'start' || section.blocks.length === 0)}
+					<div class="inserting" data-insert-composer>
+						<div class="composer-caption"><Icon name="map-pin" size={14} /> {tx('正在插入到：', 'Inserting at: ')}{resolvedPendingLabel}</div>
 						{#if pending.type === 'richtext'}
 							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
 						{:else if pending.type === 'quiz'}
@@ -739,6 +698,7 @@
 					{#key documentEditorKey}
 						<LazyRichTextEditor
 							initial={documentMarkdown}
+							insertRequest={documentInsertRequest}
 							onsave={replaceDocumentContent}
 							oncancel={() => showToast(tx('继续编辑中，未做更改', 'Still editing. No changes saved.'))}
 						/>
@@ -836,8 +796,9 @@
 							<button class="block-action danger" title={tx('删除', 'Delete')} aria-label={tx('删除内容块', 'Delete content block')} onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /> {tx('删除', 'Delete')}</button>
 						</div>
 
-						{#if pending?.source === 'canvas' && typeof pending.at === 'object' && pending.at.afterId === block.id}
-							<div class="inserting after">
+						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
+							<div class="inserting after" data-insert-composer>
+								<div class="composer-caption"><Icon name="map-pin" size={14} /> {tx('正在插入到：', 'Inserting at: ')}{resolvedPendingLabel}</div>
 								{#if pending.type === 'richtext'}
 									<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
 								{:else if pending.type === 'quiz'}
@@ -848,46 +809,17 @@
 							</div>
 						{/if}
 					</div>
-					{#if !isDocumentBlock(block) && (dragInsertType || dropTarget === block.id)}
-						<button
-							type="button"
-							class="insert-drop-zone"
-							class:active={dropTarget === block.id}
-							data-insert-target={block.id}
-							ondragover={(e) => onInsertDragOver(e, block.id)}
-							ondrop={(e) => onInsertDrop(e, block.id)}
-							ondragleave={() => { if (dropTarget === block.id) dropTarget = null; }}
-							onclick={() => (insertTarget = block.id)}
-						>
-							<span class="drop-line"></span>
-							<span>{dropZoneLabel(block.id)}</span>
-						</button>
-					{/if}
 				{/each}
 
 				{#if section.blocks.length > 0}
 					<div class="add-end menu-anchor">
-						{#if dragInsertType || dropTarget === 'end'}
-							<button
-								type="button"
-								class="insert-drop-zone end"
-								class:active={dropTarget === 'end'}
-								data-insert-target="end"
-								ondragover={(e) => onInsertDragOver(e, 'end')}
-								ondrop={(e) => onInsertDrop(e, 'end')}
-								ondragleave={() => { if (dropTarget === 'end') dropTarget = null; }}
-								onclick={() => (insertTarget = 'end')}
-							>
-								<span class="drop-line"></span>
-								<span>{dropZoneLabel('end')}</span>
-							</button>
-						{/if}
 						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}><Icon name="plus" size={16} /> {tx('添加内容块', 'Add block')}</button>
 						{#if menuAt === 'end'}
 							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
 						{/if}
-						{#if pending?.source === 'canvas' && pending.at === 'end'}
-							<div class="inserting">
+						{#if pending && pending.at === 'end'}
+							<div class="inserting" data-insert-composer>
+								<div class="composer-caption"><Icon name="map-pin" size={14} /> {tx('正在插入到：', 'Inserting at: ')}{resolvedPendingLabel}</div>
 								{#if pending.type === 'richtext'}
 									<LazyRichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
 								{:else if pending.type === 'quiz'}
@@ -939,14 +871,14 @@
 						<span class="panel-index">02</span>
 						<div>
 							<h3>{tx('插入模块', 'Insert module')}</h3>
-							<p>{tx(`${section.blocks.length} 个内容块，可选择插入位置`, `${section.blocks.length} content blocks. Choose an insertion point`)}</p>
+							<p>{tx('文字直接进入编辑器；媒体和题目可选择位置', 'Text goes into the editor; choose placement for media and quizzes')}</p>
 						</div>
 					</div>
 					<label class="field">
 						<span>{tx('插入位置', 'Insertion point')}</span>
 						<select bind:value={insertTarget}>
 							<option value="start">{tx('章节开头', 'Section start')}</option>
-							{#each section.blocks as b, i (b.id)}
+							{#each insertableBlocks as b, i (b.id)}
 								<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>
 							{/each}
 							<option value="end">{tx('章节末尾', 'Section end')}</option>
@@ -957,7 +889,7 @@
 							<span class="pos-mark">0</span>
 							<span>{tx('章节开头', 'Section start')}</span>
 						</button>
-						{#each section.blocks as b, i (b.id)}
+						{#each insertableBlocks as b, i (b.id)}
 							<button type="button" class:active={insertTarget === b.id} onclick={() => (insertTarget = b.id)}>
 								<span class="pos-mark">{i + 1}</span>
 								<span>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)}</span>
@@ -969,66 +901,47 @@
 							<span>{tx('章节末尾', 'Section end')}</span>
 						</button>
 					</div>
+					<div class="insert-hint">
+						<Icon name="map-pin" size={14} />
+						<span>{tx('文字模块插入到编辑器光标处；媒体/题目会插入到：', 'Text modules insert at the editor cursor; media/quizzes insert at: ')}{currentInsertionLabel}</span>
+					</div>
 					<div class="module-grid">
 						{#each SIDE_TYPES as t (t.type)}
 							<button
 								class="module-tile"
 								class:active={pending?.type === t.type}
-								title={tx('拖到正文中插入', 'Drag into the document to insert')}
-								aria-label={`${t.label()} · ${tx('拖到正文中插入', 'Drag into the document to insert')}`}
-								onpointerdown={(e) => beginPointerInsert(e, t.type)}
-								onpointermove={movePointerInsert}
-								onpointerup={endPointerInsert}
-								onpointercancel={endPointerInsert}
-								onclick={() => { if (!suppressTileClick) pickSideType(t.type); }}
+								title={isDocumentInsertType(t.type) ? tx('点击后直接插入到正文编辑器', 'Click to insert directly into the document editor') : tx('点击后在所选位置创建结构模块', 'Click to create a structured block at the selected position')}
+								aria-label={`${t.label()} · ${isDocumentInsertType(t.type) ? tx('点击后直接插入到正文编辑器', 'Click to insert directly into the document editor') : tx('点击后在所选位置创建结构模块', 'Click to create a structured block at the selected position')}`}
+								onclick={() => pickSideType(t.type)}
 							>
 								<span class="tile-icon"><Icon name={t.icon} size={18} /></span>
 								<span>
 									<strong>{t.label()}</strong>
 									<small>{t.desc()}</small>
 								</span>
-								<span class="tile-grip" aria-hidden="true"><Icon name="grip-vertical" size={16} /></span>
+								<span class="tile-action" aria-hidden="true"><Icon name="plus" size={16} /></span>
 							</button>
 						{/each}
 					</div>
 				</section>
 
-				{#if pending?.source === 'side'}
-					<section class="panel-card side-form">
-						<div class="panel-head">
-							<span class="panel-index">03</span>
-							<div>
-								<h3>{tx(`${typeLabel(pending.type)}设置`, `${typeLabel(pending.type)} settings`)}</h3>
-								<p>{tx('将插入到：', 'Will insert at: ')}{resolvedPendingLabel}</p>
-							</div>
+				<section class="panel-card quick-panel">
+					<div class="panel-head">
+						<span class="panel-index">03</span>
+						<div>
+							<h3>{tx('导入素材', 'Import assets')}</h3>
+							<p>{tx('AI 转译会先生成可预览的富文本，再插入到所选位置', 'AI translation creates previewable rich text before insertion')}</p>
 						</div>
-						{#if pending.type === 'richtext'}
-							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, resolvedPendingPosition); }} oncancel={() => (pending = null)} />
-						{:else if pending.type === 'quiz'}
-							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, resolvedPendingPosition); }} oncancel={() => (pending = null)} />
-						{:else}
-							<BlockForm presetType={pending.type} lockType onsave={(b) => { if (pending) createBlock(b, resolvedPendingPosition); }} oncancel={() => (pending = null)} />
-						{/if}
-					</section>
-				{:else}
-					<section class="panel-card quick-panel">
-						<div class="panel-head">
-							<span class="panel-index">03</span>
-							<div>
-								<h3>{tx('导入素材', 'Import assets')}</h3>
-								<p>{tx('AI 转译或视频上传后会进入当前章节', 'AI translations or uploaded videos will be added to the current section')}</p>
-							</div>
-						</div>
-						<label class="wide-action" class:busy={ingestBusy}>
-							<Icon name="sparkles" size={16} /> {ingestBusy ? tx('AI 转译中…', 'AI translating...') : tx('AI 转译 PDF / PPTX / Word', 'AI translate PDF / PPTX / Word')}
-							<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
-						</label>
-						<label class="wide-action" class:busy={uploading}>
-							<Icon name="video" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('上传视频', 'Upload video')}
-							<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
-						</label>
-					</section>
-				{/if}
+					</div>
+					<label class="wide-action" class:busy={ingestBusy}>
+						<Icon name="sparkles" size={16} /> {ingestBusy ? tx('AI 转译中…', 'AI translating...') : tx('AI 转译 PDF / PPTX / Word', 'AI translate PDF / PPTX / Word')}
+						<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
+					</label>
+					<label class="wide-action" class:busy={uploading}>
+						<Icon name="video" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('上传视频', 'Upload video')}
+						<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
+					</label>
+				</section>
 			</aside>
 		{/if}
 	</div>
@@ -1037,12 +950,6 @@
 		<div class="toast" transition:fly={{ y: 16, duration: 260, easing: cubicOut }}>
 			<span>{toast.msg}</span>
 			{#if toast.undo}<button onclick={() => toast?.undo?.()}>{toast.actionLabel}</button>{/if}
-		</div>
-	{/if}
-	{#if pointerDragActive && pointerInsertType}
-		<div class="drag-ghost" style={`transform: translate(${pointerX + 14}px, ${pointerY + 14}px);`}>
-			<Icon name="move" size={14} />
-			<span>{typeLabel(pointerInsertType)}</span>
 		</div>
 	{/if}
 </div>
@@ -1070,7 +977,7 @@
 			<label class="pos">{tx('插入位置', 'Insertion point')}
 				<select bind:value={insertPos}>
 					<option value="start">{tx('章节开头', 'Section start')}</option>
-					{#each section.blocks as b, i (b.id)}<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>{/each}
+					{#each insertableBlocks as b, i (b.id)}<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>{/each}
 					<option value="end">{tx('章节末尾', 'Section end')}</option>
 				</select>
 			</label>
@@ -1529,6 +1436,25 @@
 		font-size: var(--text-xs);
 		white-space: nowrap;
 	}
+	.insert-hint {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid color-mix(in srgb, var(--accent-violet) 26%, var(--border-default));
+		border-radius: var(--radius-lg);
+		background:
+			linear-gradient(90deg, var(--accent-violet-bg), transparent),
+			var(--surface-container);
+		color: var(--text-secondary);
+		font-size: var(--text-xs);
+		font-weight: 700;
+	}
+	.insert-hint :global(svg) {
+		color: var(--accent-violet);
+		flex: 0 0 auto;
+	}
 	.module-grid {
 		display: grid;
 		grid-template-columns: 1fr;
@@ -1537,7 +1463,7 @@
 	}
 	.module-tile {
 		display: grid;
-		grid-template-columns: 40px minmax(0, 1fr) 18px;
+		grid-template-columns: 40px minmax(0, 1fr) 32px;
 		align-items: center;
 		gap: var(--space-3);
 		width: 100%;
@@ -1550,16 +1476,13 @@
 			var(--surface-container);
 		color: var(--text-primary);
 		text-align: left;
-		cursor: grab;
+		cursor: pointer;
 		user-select: none;
-		touch-action: none;
+		touch-action: manipulation;
 		transition: var(--transition-fast);
 	}
 	.module-tile:active {
-		cursor: grabbing;
-	}
-	.canvas.insert-dragging .module-tile {
-		opacity: 0.72;
+		transform: translateY(1px);
 	}
 	.module-tile:nth-child(1) {
 		--tile-accent: var(--accent-blue);
@@ -1602,11 +1525,16 @@
 			linear-gradient(90deg, var(--tile-bg, var(--brand-50)), transparent 60%),
 			var(--surface-elevated);
 	}
-	.tile-grip {
+	.tile-action {
+		width: 30px;
+		height: 30px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		color: var(--text-tertiary);
+		border-radius: var(--radius-md);
+		background: var(--tile-bg, var(--brand-50));
+		color: var(--tile-accent, var(--text-brand));
+		border: 1px solid color-mix(in srgb, var(--tile-accent, var(--brand-500)) 24%, var(--border-default));
 	}
 	.tile-icon {
 		width: 40px;
@@ -1631,31 +1559,6 @@
 		color: var(--text-tertiary);
 		font-size: var(--text-xs);
 		line-height: 1.35;
-	}
-	.side-form {
-		border-color: var(--brand-200);
-	}
-	.side-form :global(.rte) {
-		box-shadow: none;
-	}
-	.side-form :global(.ribbon) {
-		position: static;
-		padding: var(--space-2);
-	}
-	.side-form :global(.group-label),
-	.side-form :global(.statusbar) {
-		display: none;
-	}
-	.side-form :global(.surface-shell) {
-		padding: var(--space-2);
-	}
-	.side-form :global(.surface) {
-		min-height: 220px;
-		max-height: 360px;
-		padding: var(--space-4);
-	}
-	.side-form :global(.ProseMirror) {
-		min-height: 180px;
 	}
 	.wide-action {
 		min-height: 44px;
@@ -1850,86 +1753,33 @@
 		font-size: var(--text-sm);
 	}
 	.inserting {
-		margin: var(--space-2) 0;
+		margin: var(--space-4) 0;
+		padding: var(--space-3);
+		border: 1px solid color-mix(in srgb, var(--accent-violet) 30%, var(--border-default));
+		border-radius: var(--radius-xl);
+		background:
+			linear-gradient(180deg, var(--accent-violet-bg), transparent 38%),
+			var(--surface-elevated);
+		box-shadow: var(--shadow-md);
 	}
 	.inserting.after {
 		grid-column: 1 / -1;
 	}
-	.add-end {
-		display: block;
-		margin-top: var(--space-3);
-	}
-	.insert-drop-zone {
-		width: 100%;
-		min-height: 18px;
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-		align-items: center;
-		gap: var(--space-3);
-		margin: var(--space-1) 0 var(--space-2);
-		padding: 0 var(--space-3);
-		border: 1px solid transparent;
-		border-radius: var(--radius-lg);
-		background: transparent;
-		color: transparent;
-		font-size: var(--text-xs);
-		font-weight: 800;
-		cursor: copy;
-		transition:
-			min-height 180ms ease,
-			padding 180ms ease,
-			border-color var(--transition-fast),
-			background var(--transition-fast),
-			color var(--transition-fast);
-	}
-	.canvas.insert-dragging .insert-drop-zone,
-	.insert-drop-zone.active {
-		min-height: 68px;
-		padding: var(--space-3);
-		border-color: color-mix(in srgb, var(--accent-violet) 48%, var(--border-default));
-		background:
-			linear-gradient(90deg, transparent, var(--accent-violet-bg), transparent),
-			var(--surface-elevated);
-		color: var(--accent-violet);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 18%, transparent);
-	}
-	.insert-drop-zone.active {
-		min-height: 88px;
-		border-style: solid;
-		box-shadow:
-			0 18px 42px color-mix(in srgb, var(--accent-violet) 16%, transparent),
-			inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 26%, transparent);
-	}
-	.drop-line {
-		height: 2px;
-		border-radius: var(--radius-full);
-		background: currentColor;
-		opacity: 0.75;
-	}
-	.insert-drop-zone::after {
-		content: '';
-		height: 2px;
-		border-radius: var(--radius-full);
-		background: currentColor;
-		opacity: 0.75;
-	}
-	.drag-ghost {
-		position: fixed;
-		left: 0;
-		top: 0;
-		z-index: 1000;
+	.composer-caption {
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid color-mix(in srgb, var(--accent-violet) 52%, var(--border-default));
+		margin-bottom: var(--space-3);
+		padding: var(--space-1) var(--space-3);
 		border-radius: var(--radius-full);
-		background: var(--surface-elevated);
+		background: var(--accent-violet-bg);
 		color: var(--accent-violet);
-		box-shadow: var(--shadow-lg);
 		font-size: var(--text-xs);
 		font-weight: 900;
-		pointer-events: none;
+	}
+	.add-end {
+		display: block;
+		margin-top: var(--space-3);
 	}
 	.add-end-btn {
 		display: flex;

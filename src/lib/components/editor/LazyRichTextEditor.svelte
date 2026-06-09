@@ -1,20 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Component } from 'svelte';
+	import type { Content } from '@tiptap/core';
 	import { useI18n } from '$lib/i18n/context';
 
 	let {
 		initial,
+		insertRequest,
 		onsave,
 		oncancel
 	}: {
 		initial?: string;
+		insertRequest?: { id: number; content: Content } | null;
 		onsave: (markdown: string) => void;
 		oncancel: () => void;
 	} = $props();
 
 	let Editor = $state<Component<{
 		initial?: string;
+		insertRequest?: { id: number; content: Content } | null;
 		onsave: (markdown: string) => void;
 		oncancel: () => void;
 	}> | null>(null);
@@ -27,7 +31,7 @@
 </script>
 
 {#if Editor}
-	<Editor {initial} {onsave} {oncancel} />
+	<Editor {initial} {insertRequest} {onsave} {oncancel} />
 {:else}
 	<div class="loading" role="status">{tx('加载富文本编辑器…', 'Loading rich text editor...')}</div>
 {/if}
