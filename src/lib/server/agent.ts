@@ -1,23 +1,12 @@
-import { env } from '$env/dynamic/private';
 import { blockInputSchema } from './schemas';
 import { validateTranslationQuality } from './translationQuality';
+import { resolveActiveAiConfig, hasActiveAiConfig } from './ai-settings';
+import { chatCompletionsUrl } from './ai-config';
 import type { BlockInput } from '$lib/content/types';
 
-// $env/dynamic/private reads .env in dev (Vite does NOT populate process.env for
-// server code) and the real process env in production — so the key loads either way.
-const BASE = env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const MODEL = env.QWEN_MODEL || 'qwen3.7-plus';
-
-function numericEnv(value: string | undefined, fallback: number): number {
-	const parsed = Number(value);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-const AGENT_TIMEOUT_MS = numericEnv(env.DASHSCOPE_TIMEOUT_MS, 60_000);
-
-/** The multimodal agent (qwen3.7-plus) is configured only when its key is set. */
+/** True when a usable AI config exists (active DB profile or .env fallback). */
 export function hasAgentKey(): boolean {
-	return !!env.DASHSCOPE_API_KEY;
+	return hasActiveAiConfig();
 }
 
 const SYSTEM_PROMPT = `You are an onboarding content editor. Rewrite the raw source document into a polished, READABLE onboarding chapter — not a raw text dump. Reorganize, retitle, and rephrase for clarity and a welcoming onboarding tone, while staying faithful to the source's facts.
@@ -49,23 +38,27 @@ interface ChatResponse {
 export interface AgentResult {
 	blocks: BlockInput[];
 	tokens: number;
+	model: string;
 }
 
-/** Transform document text into validated blocks via qwen3.7-plus. */
+/** Transform document text into validated blocks via the active OpenAI-compatible provider. */
 export async function convertWithAgent(text: string): Promise<AgentResult> {
-	const key = env.DASHSCOPE_API_KEY;
-	if (!key) throw new Error('DASHSCOPE_API_KEY not set');
+	const config = resolveActiveAiConfig();
+	if (!config) throw new Error('no AI provider configured');
 
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+	const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+	const headers: Record<string, string> = { 'content-type': 'application/json' };
+	// Keyless endpoints (e.g. local Ollama) omit the Authorization header.
+	if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`;
 	let data: ChatResponse;
 	try {
-		const res = await fetch(`${BASE}/chat/completions`, {
+		const res = await fetch(chatCompletionsUrl(config.baseUrl), {
 			method: 'POST',
-			headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+			headers,
 			signal: controller.signal,
 			body: JSON.stringify({
-				model: MODEL,
+				model: config.model,
 				messages: [
 					{ role: 'system', content: SYSTEM_PROMPT },
 					{ role: 'user', content: text.slice(0, 60000) }
@@ -82,7 +75,7 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 		data = (await res.json()) as ChatResponse;
 	} catch (e) {
 		if (e instanceof Error && e.name === 'AbortError') {
-			throw new Error(`agent timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s`);
+			throw new Error(`agent timed out after ${Math.round(config.timeoutMs / 1000)}s`);
 		}
 		throw e;
 	} finally {
@@ -107,7 +100,7 @@ export async function convertWithAgent(text: string): Promise<AgentResult> {
 	const issues = validateTranslationQuality(text, blocks);
 	if (issues.length) throw new Error('agent quality check failed: ' + issues.slice(0, 3).join('; '));
 	const tokens = typeof data.usage?.total_tokens === 'number' ? data.usage.total_tokens : 0;
-	return { blocks, tokens };
+	return { blocks, tokens, model: config.model };
 }
 
 /** Our blocks render as plain text, so strip stray inline-markdown markers the model may emit. */

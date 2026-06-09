@@ -99,6 +99,9 @@
 			<p class="sub">{tx('组织模块和章节，进入内联编辑器，再用真实学生视图检查学习路径。', 'Organize modules and sections, edit inline, then verify the learning path in the live learner view.')}</p>
 		</div>
 		<div class="head-actions">
+			<a class="btn-secondary" href="/editor/settings">
+				<Icon name="settings" size={15} /> {tx('设置', 'Settings')}
+			</a>
 			<a class="btn-secondary" href="/learn?view=learner">
 				<Icon name="graduation-cap" size={15} /> {tx('学生视图', 'Learner view')}
 			</a>

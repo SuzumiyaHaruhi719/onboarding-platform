@@ -17,6 +17,7 @@ export interface IngestJob {
 	status: JobStatus;
 	usedAgent: boolean;
 	tokens: number;
+	model: string;
 	startedAt: number;
 	durationMs: number;
 	events: IngestEvent[];
@@ -39,6 +40,7 @@ export function startIngestion(filename: string, buf: Buffer): string {
 		status: 'pending',
 		usedAgent: false,
 		tokens: 0,
+		model: '',
 		startedAt: Date.now(),
 		durationMs: 0,
 		events: [],
@@ -69,14 +71,15 @@ async function run(jobId: string, filename: string, buf: Buffer): Promise<void> 
 		job.status = 'converting';
 		let blocks: BlockInput[] = [];
 		if (hasAgentKey()) {
-			log('调用多模态 agent(qwen3.7-plus)转译为可读章节…', 'Calling multimodal agent (qwen3.7-plus) to translate into readable sections...');
+			log('调用 AI 模型转译为可读章节…', 'Calling the AI model to translate into readable sections...');
 			try {
 				const result = await convertWithAgent(cleanContent);
 				if (result.blocks.length > 0) {
 					blocks = result.blocks;
 					job.tokens = result.tokens;
+					job.model = result.model;
 					job.usedAgent = true;
-					log(`AI 转译完成 · ${blocks.length} 段 · ${result.tokens} tokens`, `AI translation complete · ${blocks.length} sections · ${result.tokens} tokens`);
+					log(`AI 转译完成 · ${result.model} · ${blocks.length} 段 · ${result.tokens} tokens`, `AI translation complete · ${result.model} · ${blocks.length} sections · ${result.tokens} tokens`);
 				} else {
 					log('AI 未返回有效内容，改用本地解析', 'AI returned no usable content. Falling back to local parsing');
 				}

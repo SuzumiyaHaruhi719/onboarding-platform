@@ -247,6 +247,7 @@
 	let ingestStatus = $state('');
 	let ingestElapsed = $state(0);
 	let ingestTokens = $state(0);
+	let ingestModel = $state('');
 	let ingestUsedAgent = $state(false);
 	let ingestEvents = $state<IngestEvent[]>([]);
 	let showLog = $state(false);
@@ -432,6 +433,7 @@
 		ingestStatus = tx('上传中', 'Uploading');
 		ingestEvents = [];
 		ingestTokens = 0;
+		ingestModel = '';
 		ingestUsedAgent = false;
 		ingestElapsed = 0;
 		previewBlocks = [];
@@ -464,6 +466,7 @@
 			ingestStatus = STAGE_LABEL[s.status]?.() ?? s.status;
 			ingestUsedAgent = !!s.usedAgent;
 			if (typeof s.tokens === 'number') ingestTokens = s.tokens;
+			if (typeof s.model === 'string') ingestModel = s.model;
 			if (Array.isArray(s.events)) ingestEvents = s.events;
 			if (s.status === 'ready') {
 				stopTimer();
@@ -692,7 +695,7 @@
 	<div class="modal-bg" transition:fade={{ duration: 200 }}><div class="modal" role="dialog" aria-modal="true" aria-label={tx('AI 转译预览', 'AI translation preview')} tabindex="-1" in:scale={{ start: 0.96, opacity: 0, duration: 320, easing: cubicOut }} out:scale={{ start: 0.98, opacity: 0, duration: 180 }}>
 		<header class="modal-head">
 			<strong>{tx(`AI 转译预览 · ${previewBlocks.length} 段`, `AI translation preview · ${previewBlocks.length} sections`)}</strong>
-			<span class="badge">{ingestUsedAgent ? `qwen3.7-plus · ${ingestTokens} tokens` : tx('本地解析', 'Local parser')}</span>
+			<span class="badge">{ingestUsedAgent ? `${ingestModel || 'AI'} · ${ingestTokens} tokens` : tx('本地解析', 'Local parser')}</span>
 		</header>
 		<div class="modal-body">
 			<div class="preview-pane">

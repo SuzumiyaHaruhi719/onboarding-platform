@@ -47,6 +47,21 @@ export const quizzes = sqliteTable('quizzes', {
 	answer: text('answer').notNull() // JSON: number | number[] | boolean
 });
 
+export const aiProfiles = sqliteTable('ai_profiles', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	// Preset id used for UI grouping + defaults: openai/dashscope/deepseek/...
+	provider: text('provider').notNull(),
+	baseUrl: text('base_url').notNull(),
+	model: text('model').notNull(),
+	// Plaintext key; empty string means keyless (e.g. local Ollama). Never returned to the client.
+	apiKey: text('api_key').notNull().default(''),
+	timeoutMs: integer('timeout_ms').notNull().default(60_000),
+	// 0/1; at most one row is active (the config the AI agent uses).
+	active: integer('active').notNull().default(0),
+	createdAt: integer('created_at').notNull()
+});
+
 export const progress = sqliteTable(
 	'progress',
 	{

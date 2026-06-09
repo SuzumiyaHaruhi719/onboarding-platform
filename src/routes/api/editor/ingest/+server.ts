@@ -32,6 +32,7 @@ export const GET: RequestHandler = ({ url, locals }) => {
 		status: job.status,
 		usedAgent: job.usedAgent,
 		tokens: job.tokens,
+		model: job.model,
 		durationMs: job.durationMs,
 		events: job.events,
 		blocks: job.blocks,

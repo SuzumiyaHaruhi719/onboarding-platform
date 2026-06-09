@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isProviderId } from '$lib/ai/presets';
 
 const sectionId = z.string().min(1).max(100);
 
@@ -98,4 +99,36 @@ export const insertQuizBlockSchema = z.object({
 	sectionId,
 	quiz: quizInputSchema,
 	position: positionSchema
+});
+
+// ---- AI provider settings ----
+
+const httpUrl = z
+	.string()
+	.min(1)
+	.max(2000)
+	.refine((u) => /^https?:\/\//i.test(u), { message: 'baseUrl 必须是 http(s) 地址 / must be an http(s) URL' });
+
+const providerId = z.string().refine(isProviderId, { message: 'unknown provider' });
+const aiTimeoutMs = z.number().int().min(1000).max(600_000).optional();
+const apiKey = z.string().max(500).optional();
+
+/** Create/update payload. On update, an empty/omitted apiKey keeps the stored key. */
+export const aiProfileInputSchema = z.object({
+	name: z.string().min(1).max(100),
+	provider: providerId,
+	baseUrl: httpUrl,
+	model: z.string().min(1).max(200),
+	apiKey,
+	timeoutMs: aiTimeoutMs
+});
+
+/** Connection-test payload: an inline config, optionally tied to an existing profile id
+ *  so a blank key reuses the stored secret. */
+export const aiTestSchema = z.object({
+	id: z.string().min(1).max(100).optional(),
+	baseUrl: httpUrl,
+	model: z.string().min(1).max(200),
+	apiKey,
+	timeoutMs: aiTimeoutMs
 });
