@@ -85,6 +85,21 @@
 		background: none;
 		padding: 0;
 	}
+	.prose :global(img),
+	.prose :global(video) {
+		display: block;
+		width: min(100%, 780px);
+		max-height: 520px;
+		object-fit: contain;
+		margin: var(--space-5) 0;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		background: var(--surface-subtle);
+		box-shadow: var(--shadow-sm);
+	}
+	.prose :global(video) {
+		aspect-ratio: 16 / 9;
+	}
 	.prose :global(hr) {
 		border: none;
 		border-top: 1px solid var(--border-default);

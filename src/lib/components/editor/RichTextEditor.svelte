@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
-	import { Editor, type Content } from '@tiptap/core';
+	import { Editor, Node, mergeAttributes, type Content } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
 	import { Markdown } from 'tiptap-markdown';
 	import Icon from '$lib/components/Icon.svelte';
@@ -24,6 +24,43 @@
 	const i18n = useI18n();
 	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
+	const MediaImage = Node.create({
+		name: 'image',
+		group: 'block',
+		atom: true,
+		addAttributes() {
+			return {
+				src: { default: null },
+				alt: { default: '' },
+				title: { default: '' }
+			};
+		},
+		parseHTML() {
+			return [{ tag: 'img[src]' }];
+		},
+		renderHTML({ HTMLAttributes }) {
+			return ['img', mergeAttributes(HTMLAttributes)];
+		}
+	});
+
+	const MediaVideo = Node.create({
+		name: 'video',
+		group: 'block',
+		atom: true,
+		addAttributes() {
+			return {
+				src: { default: null },
+				poster: { default: null }
+			};
+		},
+		parseHTML() {
+			return [{ tag: 'video[src]' }];
+		},
+		renderHTML({ HTMLAttributes }) {
+			return ['video', mergeAttributes(HTMLAttributes, { controls: '', preload: 'metadata' })];
+		}
+	});
+
 	onMount(() => {
 		editor = new Editor({
 			element,
@@ -32,6 +69,8 @@
 					heading: { levels: [2, 3] },
 					link: { openOnClick: false }
 				}),
+				MediaImage,
+				MediaVideo,
 				Markdown.configure({ html: false, breaks: false, transformPastedText: true })
 			],
 			content: startMarkdown,
@@ -107,13 +146,12 @@
 
 	function save(): void {
 		if (!editor) return;
-		const storage = editor.storage as { markdown?: { getMarkdown: () => string } };
-		const md = storage.markdown?.getMarkdown() ?? '';
-		if (!md.trim()) {
+		const html = editor.getHTML();
+		if (!editor.getText().trim() && !/<(img|video)\b/i.test(html)) {
 			err = tx('内容不能为空，请先输入文字', 'Content cannot be empty. Add some text first.');
 			return;
 		}
-		onsave(md);
+		onsave(html);
 	}
 
 	function onWrapKeydown(e: KeyboardEvent): void {
@@ -429,6 +467,21 @@
 		margin: 0 0 var(--space-3);
 		color: var(--text-primary);
 	}
+	.surface :global(img),
+	.surface :global(video) {
+		display: block;
+		width: min(100%, 760px);
+		max-height: 460px;
+		object-fit: contain;
+		margin: var(--space-4) 0;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		background: var(--surface-subtle);
+		box-shadow: var(--shadow-sm);
+	}
+	.surface :global(video) {
+		aspect-ratio: 16 / 9;
+	}
 	.surface :global(a) {
 		color: var(--accent-blue);
 		text-decoration: underline;
@@ -524,28 +577,36 @@
 	}
 	@media (max-width: 768px) {
 		.ribbon {
-			position: sticky;
-			top: 0;
-			flex-wrap: nowrap;
-			align-items: flex-end;
-			overflow-x: auto;
+			position: static;
+			flex-wrap: wrap;
+			align-items: stretch;
+			overflow-x: visible;
 			padding: var(--space-2);
-			scrollbar-width: thin;
 		}
 		.ribbon-group,
 		.ribbon-group.wide {
-			width: auto;
+			flex: 1 1 auto;
 			min-width: 0;
 		}
 		.ribbon-group.wide {
-			min-width: 198px;
+			flex-basis: 100%;
 		}
 		.group-label {
 			display: none;
 		}
+		.button-row {
+			width: 100%;
+			flex-wrap: wrap;
+		}
+		.segmented button {
+			min-width: 0;
+		}
+		.ribbon-spacer {
+			display: none;
+		}
 		.ribbon-save {
-			width: auto;
-			min-width: 132px;
+			flex: 1 1 100%;
+			min-width: 0;
 		}
 		.ribbon-save .btn {
 			flex: 1;

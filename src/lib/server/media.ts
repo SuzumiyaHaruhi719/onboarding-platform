@@ -5,7 +5,13 @@ import { join, extname, basename } from 'node:path';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? 'uploads';
 
-const VIDEO_TYPES: Record<string, string> = {
+const MEDIA_TYPES: Record<string, string> = {
+	'.jpg': 'image/jpeg',
+	'.jpeg': 'image/jpeg',
+	'.png': 'image/png',
+	'.gif': 'image/gif',
+	'.webp': 'image/webp',
+	'.avif': 'image/avif',
 	'.mp4': 'video/mp4',
 	'.m4v': 'video/mp4',
 	'.webm': 'video/webm',
@@ -13,15 +19,15 @@ const VIDEO_TYPES: Record<string, string> = {
 	'.mov': 'video/quicktime'
 };
 
-export const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
+export const MAX_MEDIA_BYTES = 200 * 1024 * 1024; // 200 MB
 
 function ensureDir(): void {
 	if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-export async function saveVideo(file: File): Promise<string> {
+export async function saveMedia(file: File): Promise<string> {
 	const ext = extname(file.name).toLowerCase();
-	if (!VIDEO_TYPES[ext]) throw new Error('unsupported video type');
+	if (!MEDIA_TYPES[ext]) throw new Error('unsupported media type');
 	ensureDir();
 	const filename = randomUUID() + ext;
 	await writeFile(join(UPLOAD_DIR, filename), Buffer.from(await file.arrayBuffer()));
@@ -29,8 +35,8 @@ export async function saveVideo(file: File): Promise<string> {
 }
 
 export async function readMedia(name: string): Promise<{ data: Buffer; type: string } | null> {
-	const safe = basename(name); // strip any path components → no traversal
-	const type = VIDEO_TYPES[extname(safe).toLowerCase()];
+	const safe = basename(name); // strip path components; no traversal
+	const type = MEDIA_TYPES[extname(safe).toLowerCase()];
 	if (!type) return null;
 	const path = join(UPLOAD_DIR, safe);
 	if (!existsSync(path)) return null;

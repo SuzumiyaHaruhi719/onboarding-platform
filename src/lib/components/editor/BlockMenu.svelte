@@ -12,7 +12,7 @@
 	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
 	const TYPES: { type: BlockInput['type']; icon: string; label: () => string; desc: () => string }[] = [
-		{ type: 'richtext', icon: 'file-text', label: () => tx('图文正文', 'Rich text'), desc: () => tx('适合大多数课程内容', 'Best for most course content') },
+		{ type: 'richtext', icon: 'file-text', label: () => tx('文档片段', 'Document'), desc: () => tx('插入到文档编辑器中继续改写', 'Continue editing in the document editor') },
 		{ type: 'callout', icon: 'info', label: () => tx('重点提示', 'Callout'), desc: () => tx('放安全提醒、注意事项、结论', 'Safety notes, warnings, or conclusions') },
 		{ type: 'image', icon: 'image', label: () => tx('图片说明', 'Image'), desc: () => tx('图片加替代文本和图注', 'Image with alt text and caption') },
 		{ type: 'video', icon: 'video', label: () => tx('视频片段', 'Video'), desc: () => tx('上传或粘贴视频地址', 'Upload or paste a video URL') },

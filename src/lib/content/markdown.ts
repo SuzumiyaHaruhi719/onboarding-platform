@@ -17,7 +17,7 @@ const ALLOWED_TAGS = [
 	'p', 'br', 'hr', 'blockquote', 'pre', 'code',
 	'strong', 'em', 'b', 'i', 'del', 's', 'mark', 'sub', 'sup',
 	'ul', 'ol', 'li',
-	'a', 'img',
+	'a', 'img', 'video', 'source',
 	'table', 'thead', 'tbody', 'tr', 'th', 'td',
 	'span', 'div'
 ];
@@ -25,7 +25,7 @@ const ALLOWED_TAGS = [
 /** Only safe presentational/link attributes survive. DOMPurify's built-in
  *  default URI allowlist already rejects `javascript:`/`vbscript:` protocols. */
 const ALLOWED_ATTR = [
-	'href', 'title', 'alt', 'src', 'align', 'colspan', 'rowspan', 'start', 'class', 'target', 'rel'
+	'href', 'title', 'alt', 'src', 'poster', 'controls', 'preload', 'type', 'align', 'colspan', 'rowspan', 'start', 'class', 'target', 'rel'
 ];
 
 /**

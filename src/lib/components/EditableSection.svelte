@@ -1,17 +1,14 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { fade, scale, fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
-	import type { Content } from '@tiptap/core';
+	import type { Content, JSONContent } from '@tiptap/core';
 	import { goto, invalidateAll } from '$app/navigation';
 	import BlockRenderer from '$lib/content/BlockRenderer.svelte';
-	import BlockForm from '$lib/components/editor/BlockForm.svelte';
-	import BlockMenu from '$lib/components/editor/BlockMenu.svelte';
 	import LazyRichTextEditor from '$lib/components/editor/LazyRichTextEditor.svelte';
-	import QuizForm from '$lib/components/editor/QuizForm.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { useI18n } from '$lib/i18n/context';
-	import type { SectionView, Block, BlockInput, QuizInput, EditorQuiz } from '$lib/content/types';
+	import type { SectionView, Block, BlockInput, EditorQuiz } from '$lib/content/types';
 	import type { ModuleWithSections } from '$lib/db/queries';
 
 	let {
@@ -25,9 +22,6 @@
 	const i18n = useI18n();
 	const tx = (zh: string, en: string): string => (i18n().lang === 'zh' ? zh : en);
 
-	type Pos = 'start' | 'end' | { afterId: string };
-	type PendingInsert = { at: Pos; type: BlockInput['type'] };
-
 	let preview = $state(false);
 	let busy = $state(false);
 
@@ -37,12 +31,6 @@
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
 	let lastId = untrack(() => section.id);
 
-	let editingId = $state<string | null>(null);
-	let menuAt = $state<string | null>(null); // 'end' | 'start' | blockId — which "+" opened the menu
-	let pending = $state<PendingInsert | null>(null);
-	let dragId = $state<string | null>(null);
-	let overId = $state<string | null>(null);
-	let insertTarget = $state<string>('end');
 	let newModuleTitle = $state('');
 	let newSectionTitle = $state('');
 	let structureBusy = $state(false);
@@ -58,15 +46,12 @@
 			lastId = section.id;
 			title = section.title;
 			minDwellSec = Math.round(section.requirements.minDwellMs / 1000);
-			editingId = null;
-			menuAt = null;
-			pending = null;
 			saveStatus = 'idle';
 		}
 	});
 
 	const TYPE_LABEL: Record<string, () => string> = {
-		richtext: () => tx('富文本', 'Rich text'),
+		richtext: () => tx('文档', 'Document'),
 		heading: () => tx('标题', 'Heading'),
 		paragraph: () => tx('正文', 'Paragraph'),
 		list: () => tx('列表', 'List'),
@@ -77,16 +62,8 @@
 		quiz: () => tx('题目', 'Quiz')
 	};
 	const typeLabel = (type: string): string => TYPE_LABEL[type]?.() ?? type;
-	const SIDE_TYPES: { type: BlockInput['type']; icon: string; label: () => string; desc: () => string }[] = [
-		{ type: 'richtext', icon: 'file-text', label: () => tx('图文正文', 'Rich text'), desc: () => tx('插入一段独立富文本内容', 'Insert a standalone rich text block') },
-		{ type: 'callout', icon: 'info', label: () => tx('重点提示', 'Callout'), desc: () => tx('安全提醒、结论或注意事项', 'Safety note, conclusion, or warning') },
-		{ type: 'image', icon: 'image', label: () => tx('图片说明', 'Image'), desc: () => tx('图片、替代文本和图注', 'Image, alt text, and caption') },
-		{ type: 'video', icon: 'video', label: () => tx('视频片段', 'Video'), desc: () => tx('上传或粘贴视频地址', 'Upload or paste a video URL') },
-		{ type: 'quiz', icon: 'circle-check', label: () => tx('检查题', 'Quiz'), desc: () => tx('学生通过后继续学习', 'Learners continue after passing') }
-	];
 	const currentModule = $derived(modules.find((m) => m.sections.some((s) => s.id === section.id)) ?? modules[0]);
 	const currentModuleTitle = $derived(currentModule?.title ?? tx('当前模块', 'Current module'));
-	const insertPosition = $derived(posFrom(insertTarget));
 
 	async function refresh(): Promise<void> {
 		await invalidateAll();
@@ -113,117 +90,14 @@
 		await refresh();
 	}
 
-	// ---- Block create / edit / delete / reorder ----
-	function posFrom(at: string): Pos {
-		return at === 'end' || at === 'start' ? at : { afterId: at };
-	}
-	function keyFromPos(pos: Pos): string {
-		return typeof pos === 'string' ? pos : pos.afterId;
-	}
-	function insertionLabel(key: string): string {
-		if (key === 'start') return tx('章节开头', 'Section start');
-		if (key === 'end') return tx('章节末尾', 'Section end');
-		const blocks = section.blocks.filter((block) => !isDocumentBlock(block));
-		const index = blocks.findIndex((block) => block.id === key);
-		const block = blocks[index];
-		return index >= 0 && block
-			? `${tx(`第 ${index + 1} 块之后`, `After block ${index + 1}`)} · ${typeLabel(block.type)}`
-			: tx('所选位置', 'Selected position');
-	}
-	const currentInsertionLabel = $derived(insertionLabel(insertTarget));
-	const resolvedPendingLabel = $derived(insertionLabel(keyFromPos(pending?.at ?? 'end')));
-
-	async function createBlock(input: BlockInput, at: Pos): Promise<void> {
-		busy = true;
-		try {
-			const r = await call('/api/editor/blocks/insert', { sectionId: section.id, blocks: [input], position: at });
-			if (r?.ok) {
-				// Only dismiss the form on success — a rejected save keeps the user's draft.
-				pending = null;
-				menuAt = null;
-				await refresh();
-			}
-		} finally {
-			busy = false;
-		}
-	}
-
-	async function updateBlock(id: string, input: BlockInput): Promise<void> {
-		busy = true;
-		try {
-			const r = await call('/api/editor/block', { id, block: input }, 'PATCH');
-			if (r?.ok) {
-				editingId = null;
-				await refresh();
-			}
-		} finally {
-			busy = false;
-		}
-	}
-
+	// ---- Document inserts ----
 	function showToast(msg: string, undo?: () => void, actionLabel = tx('撤销', 'Undo')): void {
 		if (toastTimer) clearTimeout(toastTimer);
 		toast = { msg, undo, actionLabel };
 		toastTimer = setTimeout(() => (toast = null), 6000);
 	}
-
-	async function deleteBlock(block: Block, index: number): Promise<void> {
-		const { id: _omit, ...rest } = block;
-		const snapshot = rest as BlockInput;
-		busy = true;
-		try {
-			await call('/api/editor/block', { id: block.id }, 'DELETE');
-			await refresh();
-			showToast(tx('已删除内容块', 'Content block deleted'), async () => {
-				const prev = section.blocks[index - 1];
-				const at: Pos = index <= 0 ? 'start' : prev ? { afterId: prev.id } : 'end';
-				await createBlock(snapshot, at);
-				toast = null;
-			});
-		} finally {
-			busy = false;
-		}
-	}
-
-	async function reorderTo(targetId: string): Promise<void> {
-		if (!dragId || dragId === targetId) {
-			dragId = null;
-			overId = null;
-			return;
-		}
-		const ids = section.blocks.map((b) => b.id);
-		const from = ids.indexOf(dragId);
-		const to = ids.indexOf(targetId);
-		dragId = null;
-		overId = null;
-		if (from < 0 || to < 0) return;
-		const [moved] = ids.splice(from, 1);
-		ids.splice(to, 0, moved!);
-		busy = true;
-		try {
-			await call('/api/editor/block/reorder', { orderedIds: ids });
-			await refresh();
-		} finally {
-			busy = false;
-		}
-	}
-
-	async function revealComposer(): Promise<void> {
-		await tick();
-		document.querySelector<HTMLElement>('[data-insert-composer]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-	}
-	function openInlineInsert(at: string, type: BlockInput['type']): void {
-		menuAt = null;
-		editingId = null;
-		insertTarget = at;
-		pending = { at: posFrom(at), type };
-		void revealComposer();
-	}
-	function isDocumentInsertType(type: BlockInput['type']): boolean {
-		return ['richtext', 'heading', 'paragraph', 'list', 'quote', 'callout'].includes(type);
-	}
-	const textContent = (text: string) => [{ type: 'text', text }];
-	const paragraphNode = (text: string) => ({ type: 'paragraph', content: textContent(text) });
+	const textContent = (text: string): JSONContent[] => (text ? [{ type: 'text', text }] : []);
+	const paragraphNode = (text: string): JSONContent => ({ type: 'paragraph', content: textContent(text) });
 	function documentInsertContent(type: BlockInput['type']): Content {
 		switch (type) {
 			case 'heading':
@@ -257,31 +131,11 @@
 		}
 	}
 	function insertIntoDocument(type: BlockInput['type']): void {
-		pending = null;
-		menuAt = null;
-		editingId = null;
 		documentInsertRequest = { id: ++documentInsertId, content: documentInsertContent(type) };
 		showToast(tx('已插入到正文编辑器，请直接修改后保存', 'Inserted into the document editor. Edit it there, then save.'));
 	}
-	function pickType(at: string, type: BlockInput['type']): void {
-		if (isDocumentInsertType(type)) {
-			insertIntoDocument(type);
-			return;
-		}
-		openInlineInsert(at, type);
-	}
-	function pickSideType(type: BlockInput['type']): void {
-		if (isDocumentInsertType(type)) {
-			insertIntoDocument(type);
-			return;
-		}
-		openInlineInsert(insertTarget, type);
-	}
 	function clearTransientEditingState(): void {
-		pending = null;
-		menuAt = null;
-		editingId = null;
-		insertTarget = 'end';
+		toast = null;
 	}
 
 	async function createSectionInCurrentModule(): Promise<void> {
@@ -332,69 +186,30 @@
 		}
 	}
 
-	// ---- Quizzes (authored inline as their own blocks) ----
-	const quizById = $derived(new Map(quizzes.map((q) => [q.id, q])));
-	const QUIZ_TYPE_LABEL: Record<string, () => string> = { single: () => tx('单选', 'Single'), multiple: () => tx('多选', 'Multiple'), boolean: () => tx('判断', 'True/False') };
-	function isCorrectOption(q: EditorQuiz, i: number): boolean {
-		if (q.type === 'single') return q.answer === i;
-		if (q.type === 'multiple') return Array.isArray(q.answer) && q.answer.includes(i);
-		return q.answer === (i === 0); // boolean: option 0 == "true"
-	}
-
-	/** Author a quiz inline → creates the quiz + its block at the position. */
-	async function createQuizBlock(quiz: QuizInput, at: Pos): Promise<void> {
-		busy = true;
-		try {
-			const r = await call('/api/editor/quiz', { sectionId: section.id, quiz, position: at });
-			if (r?.ok) {
-				pending = null;
-				menuAt = null;
-				await refresh();
-			}
-		} finally {
-			busy = false;
-		}
-	}
-	async function updateQuizById(id: string, quiz: QuizInput): Promise<void> {
-		busy = true;
-		try {
-			const r = await call('/api/editor/quiz', { id, quiz }, 'PATCH');
-			if (r?.ok) {
-				editingId = null;
-				await refresh();
-			}
-		} finally {
-			busy = false;
-		}
-	}
-
-	// ---- Video upload ----
+	// ---- Media upload into the document editor ----
 	let uploading = $state(false);
-	function readDuration(file: File): Promise<number> {
-		return new Promise((resolve, reject) => {
-			const v = document.createElement('video');
-			v.preload = 'metadata';
-			v.onloadedmetadata = () => {
-				resolve(v.duration || 10);
-				URL.revokeObjectURL(v.src);
-			};
-			v.onerror = () => reject(new Error('metadata'));
-			v.src = URL.createObjectURL(file);
-		});
+	function insertMediaIntoDocument(url: string, mime: string, name: string): void {
+		const isImage = mime.startsWith('image/');
+		documentInsertRequest = {
+			id: ++documentInsertId,
+			content: isImage
+				? { type: 'image', attrs: { src: url, alt: name, title: name } }
+				: { type: 'video', attrs: { src: url } }
+		};
+		showToast(isImage ? tx('图片已插入编辑器', 'Image inserted into the editor') : tx('视频已插入编辑器', 'Video inserted into the editor'));
 	}
-	async function onVideoFile(e: Event): Promise<void> {
+	async function onMediaFile(e: Event): Promise<void> {
 		const input = e.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
 		uploading = true;
-		const dur = await readDuration(file).catch(() => 10);
 		const fd = new FormData();
 		fd.append('file', file);
 		const r = await fetch('/api/editor/upload', { method: 'POST', body: fd }).then((x) => x.json()).catch(() => null);
 		input.value = '';
 		uploading = false;
-		if (r?.ok) await createBlock({ type: 'video', src: r.url, durationSec: Math.round(dur) }, insertPosition);
-		else showToast(`${tx('上传失败', 'Upload failed')}:${r?.error ?? tx('请检查视频文件后重试', 'Check the video file and try again')}`);
+		if (r?.ok) insertMediaIntoDocument(r.url, r.mime || file.type, file.name);
+		else showToast(`${tx('上传失败', 'Upload failed')}:${r?.error ?? tx('请检查文件后重试', 'Check the file and try again')}`);
 	}
 
 	// ---- AI ingestion → preview → choose insertion ----
@@ -417,7 +232,6 @@
 	let showLog = $state(false);
 	let previewBlocks = $state<BlockInput[]>([]);
 	let showPreview = $state(false);
-	let insertPos = $state<string>('end');
 	let inserting = $state(false);
 	let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -431,8 +245,6 @@
 	const STAGE_PCT: Record<string, number> = { pending: 8, extracting: 35, converting: 75, ready: 100, error: 100 };
 	const ingestPct = $derived(STAGE_PCT[ingestStage] ?? 0);
 	const previewRender = $derived(previewBlocks.map((b, i) => ({ ...b, id: `pv-${i}` }) as Block));
-	const hasBlocks = $derived(section.blocks.length > 0);
-
 	function blockPlainText(block: Block): string {
 		if (block.type === 'richtext') return block.markdown;
 		if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'quote') return block.text;
@@ -471,11 +283,87 @@
 		}
 	}
 
+	function plainParagraphs(text: string): JSONContent[] {
+		return text
+			.split(/\n{2,}/)
+			.map((part) => part.trim())
+			.filter(Boolean)
+			.map((part) => paragraphNode(part.replace(/\n/g, ' ')));
+	}
+
+	function richTextToEditorContent(markdown: string): Content {
+		const nodes: JSONContent[] = [];
+		for (const raw of markdown.split(/\n+/)) {
+			const line = raw.trim();
+			if (!line || /^-{3,}$/.test(line)) continue;
+			const heading = /^(#{2,3})\s+(.+)$/.exec(line);
+			if (heading) {
+				nodes.push({ type: 'heading', attrs: { level: heading[1]!.length }, content: textContent(heading[2]!) });
+				continue;
+			}
+			const bullet = /^[-*]\s+(.+)$/.exec(line);
+			if (bullet) {
+				nodes.push({
+					type: 'bulletList',
+					content: [{ type: 'listItem', content: [paragraphNode(bullet[1]!)] }]
+				});
+				continue;
+			}
+			nodes.push(paragraphNode(line.replace(/^>\s?/, '')));
+		}
+		return nodes.length ? nodes : paragraphNode(markdown.trim());
+	}
+
+	function previewBlockToEditorContent(block: BlockInput): Content {
+		switch (block.type) {
+			case 'richtext':
+				return richTextToEditorContent(block.markdown);
+			case 'heading':
+				return { type: 'heading', attrs: { level: block.level }, content: textContent(block.text) };
+			case 'paragraph':
+				return plainParagraphs(block.text);
+			case 'list':
+				return {
+					type: block.ordered ? 'orderedList' : 'bulletList',
+					content: block.items.map((item) => ({ type: 'listItem', content: [paragraphNode(item)] }))
+				};
+			case 'quote':
+				return {
+					type: 'blockquote',
+					content: [paragraphNode(block.text), ...(block.cite ? [paragraphNode(`- ${block.cite}`)] : [])]
+				};
+			case 'callout':
+				return {
+					type: 'blockquote',
+					content: [
+						{
+							type: 'paragraph',
+							content: [{ type: 'text', text: block.title, marks: [{ type: 'bold' }] }]
+						},
+						...plainParagraphs(block.body)
+					]
+				};
+			case 'image':
+				return { type: 'image', attrs: { src: block.src, alt: block.alt, title: block.caption ?? block.alt } };
+			case 'video':
+				return { type: 'video', attrs: { src: block.src, poster: block.poster ?? null } };
+			default:
+				return paragraphNode(typeLabel(block.type));
+		}
+	}
+
+	function flattenEditorContent(content: Content): JSONContent[] {
+		if (typeof content === 'string') return [{ type: 'paragraph', content: [{ type: 'text', text: content }] }];
+		return Array.isArray(content) ? content : [content as JSONContent];
+	}
+
+	function previewBlocksToEditorContent(blocks: BlockInput[]): Content {
+		return blocks.flatMap((block) => flattenEditorContent(previewBlockToEditorContent(block)));
+	}
+
 	function isDocumentBlock(block: Block): boolean {
 		return ['richtext', 'heading', 'paragraph', 'list', 'quote', 'callout'].includes(block.type);
 	}
-	const insertableBlocks = $derived(section.blocks.filter((block) => !isDocumentBlock(block)));
-
 	const documentMarkdown = $derived(
 		section.blocks
 			.filter((block) => !isExtractorNoiseBlock(block))
@@ -496,7 +384,6 @@
 		busy = true;
 		try {
 			for (const block of section.blocks) {
-				if (block.type === 'image' || block.type === 'video' || block.type === 'quiz') continue;
 				await call('/api/editor/block', { id: block.id }, 'DELETE');
 			}
 			await call('/api/editor/blocks/insert', {
@@ -562,7 +449,6 @@
 				stopTimer();
 				ingestBusy = false;
 				previewBlocks = Array.isArray(s.blocks) ? s.blocks : [];
-				insertPos = insertTarget;
 				showPreview = true;
 				return;
 			}
@@ -577,14 +463,14 @@
 		void poll();
 	}
 
-	async function confirmInsert(): Promise<void> {
+	function confirmInsert(): void {
 		if (previewBlocks.length === 0) return;
 		inserting = true;
 		try {
-			await call('/api/editor/blocks/insert', { sectionId: section.id, blocks: previewBlocks, position: posFrom(insertPos) });
-			await refresh();
+			documentInsertRequest = { id: ++documentInsertId, content: previewBlocksToEditorContent(previewBlocks) };
 			showPreview = false;
 			previewBlocks = [];
+			showToast(tx('AI 转译内容已插入正文编辑器，请检查措辞和格式后保存', 'AI translation inserted into the editor. Review wording and formatting, then save.'));
 		} finally {
 			inserting = false;
 		}
@@ -597,8 +483,6 @@
 	function onKey(e: KeyboardEvent): void {
 		if (e.key === 'Escape') {
 			if (showPreview && !inserting) cancelPreview();
-			else if (menuAt) menuAt = null;
-			else if (pending) pending = null;
 		}
 	}
 
@@ -635,8 +519,8 @@
 				<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
 			</label>
 			<label class="btn-sm ghost upload video-upload" class:busy={uploading}>
-				{#if uploading}{tx('上传中…', 'Uploading...')}{:else}<Icon name="video" size={15} /> {tx('上传视频', 'Upload video')}{/if}
-				<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
+				{#if uploading}{tx('上传中…', 'Uploading...')}{:else}<Icon name="image" size={15} /> {tx('插入媒体', 'Insert media')}{/if}
+				<input type="file" accept="image/*,video/*" hidden onchange={onMediaFile} disabled={uploading} />
 			</label>
 		</div>
 	</div>
@@ -682,18 +566,6 @@
 				{/each}
 				{#if section.blocks.length === 0}<p class="muted">{tx('本节暂无内容。', 'This section has no content yet.')}</p>{/if}
 			{:else}
-				{#if pending && (pending.at === 'start' || section.blocks.length === 0)}
-					<div class="inserting" data-insert-composer>
-						<div class="composer-caption"><Icon name="map-pin" size={14} /> {tx('正在插入到：', 'Inserting at: ')}{resolvedPendingLabel}</div>
-						{#if pending.type === 'richtext'}
-							<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
-						{:else if pending.type === 'quiz'}
-							<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
-						{:else}
-							<BlockForm presetType={pending?.type} lockType onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
-						{/if}
-					</div>
-				{/if}
 				<div class="word-shell">
 					{#key documentEditorKey}
 						<LazyRichTextEditor
@@ -704,133 +576,6 @@
 						/>
 					{/key}
 				</div>
-
-				{#if section.blocks.length === 0 && !pending}
-					<div class="empty">
-						<div class="empty-icon"><Icon name="square-pen" size={24} /></div>
-						<h3>{tx('开始创建本节内容', 'Start building this section')}</h3>
-						<p>{tx('添加标题、正文、列表、视频或题目;也可以上传文档让 AI 转译成章节。', 'Add headings, body text, lists, video, or quizzes. You can also upload a document for AI translation.')}</p>
-						<div class="empty-actions">
-							<div class="menu-anchor">
-								<button class="btn primary" onclick={() => (menuAt = menuAt === 'start' ? null : 'start')}><Icon name="plus" size={16} /> {tx('添加内容块', 'Add block')}</button>
-								{#if menuAt === 'start'}
-									<BlockMenu onpick={(t) => pickType('start', t)} onclose={() => (menuAt = null)} />
-								{/if}
-							</div>
-							<label class="btn ghost upload" class:busy={ingestBusy}>
-								<Icon name="sparkles" size={16} /> {tx('AI 转译文件', 'AI translate file')}
-								<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
-							</label>
-						</div>
-					</div>
-				{/if}
-
-				{#each section.blocks as block, i (block.id)}
-					<div
-						class="eb"
-						class:document-hidden={isDocumentBlock(block)}
-						class:dragover={overId === block.id}
-						class:dragging={dragId === block.id}
-						ondragover={(e) => { e.preventDefault(); overId = block.id; }}
-						ondrop={(e) => { e.preventDefault(); reorderTo(block.id); }}
-						ondragleave={() => { if (overId === block.id) overId = null; }}
-						role="listitem"
-					>
-						<div class="gutter left">
-							<div class="menu-anchor">
-								<button class="g-btn add" title={tx('在此后添加', 'Add after this block')} aria-label={tx('在此处下方添加内容块', 'Add a content block below this position')} onclick={() => (menuAt = menuAt === block.id ? null : block.id)}><Icon name="plus" size={16} /></button>
-								{#if menuAt === block.id}
-									<BlockMenu onpick={(t) => pickType(block.id, t)} onclose={() => (menuAt = null)} />
-								{/if}
-							</div>
-							<button
-								class="g-btn handle"
-								title={tx('拖动排序', 'Drag to reorder')}
-								draggable="true"
-								ondragstart={(e) => { dragId = block.id; e.dataTransfer?.setData('text/plain', block.id); }}
-								ondragend={() => { dragId = null; overId = null; }}
-								aria-label={tx('拖动排序', 'Drag to reorder')}
-							>⠿</button>
-						</div>
-
-						<div class="block-body">
-							{#if editingId === block.id}
-								{#if block.type === 'richtext'}
-									<LazyRichTextEditor initial={block.markdown} onsave={(md) => updateBlock(block.id, { type: 'richtext', markdown: md })} oncancel={() => (editingId = null)} />
-								{:else if block.type === 'quiz'}
-									{@const q = quizById.get(block.quizId)}
-									{#if q}
-										<QuizForm initial={q} onsave={(quiz) => updateQuizById(block.quizId, quiz)} oncancel={() => (editingId = null)} />
-									{/if}
-								{:else}
-									<BlockForm initial={block as Block} onsave={(b) => updateBlock(block.id, b)} oncancel={() => (editingId = null)} />
-								{/if}
-							{:else if block.type === 'quiz'}
-								{@const q = quizById.get(block.quizId)}
-								{#if q}
-									<div class="quiz-card">
-										<div class="qc-head">
-											<span class="q-badge">{QUIZ_TYPE_LABEL[q.type]?.() ?? q.type}</span>
-											<p class="qc-q">{q.question}</p>
-										</div>
-										<ul class="qc-opts">
-											{#each q.options as opt, oi (oi)}
-												<li class:correct={isCorrectOption(q, oi)}>
-													<span class="qc-mark">{#if isCorrectOption(q, oi)}<Icon name="check" size={13} stroke={3} />{/if}</span>
-													<span>{opt}</span>
-												</li>
-											{/each}
-										</ul>
-									</div>
-								{:else}
-									<div class="quiz-ph"><Icon name="file-text" size={16} />{tx('题目数据缺失', 'Quiz data missing')}</div>
-								{/if}
-							{:else}
-								<BlockRenderer {block} quizzes={[]} sectionId={section.id} onintervals={noop} onpassed={noop} />
-							{/if}
-						</div>
-
-						<div class="gutter right">
-							<span class="badge">{typeLabel(block.type)}</span>
-							<button class="block-action" title={tx('编辑', 'Edit')} aria-label={tx('编辑内容块', 'Edit content block')} onclick={() => (editingId = editingId === block.id ? null : block.id)}><Icon name="pencil" size={15} /> {tx('编辑', 'Edit')}</button>
-							<button class="block-action danger" title={tx('删除', 'Delete')} aria-label={tx('删除内容块', 'Delete content block')} onclick={() => deleteBlock(block as Block, i)} disabled={busy}><Icon name="trash-2" size={15} /> {tx('删除', 'Delete')}</button>
-						</div>
-
-						{#if pending && typeof pending.at === 'object' && pending.at.afterId === block.id}
-							<div class="inserting after" data-insert-composer>
-								<div class="composer-caption"><Icon name="map-pin" size={14} /> {tx('正在插入到：', 'Inserting at: ')}{resolvedPendingLabel}</div>
-								{#if pending.type === 'richtext'}
-									<LazyRichTextEditor onsave={(md) => { if (pending) createBlock({ type: 'richtext', markdown: md }, pending.at); }} oncancel={() => (pending = null)} />
-								{:else if pending.type === 'quiz'}
-									<QuizForm onsave={(quiz) => { if (pending) createQuizBlock(quiz, pending.at); }} oncancel={() => (pending = null)} />
-								{:else}
-									<BlockForm presetType={pending?.type} lockType onsave={(b) => { if (pending) createBlock(b, pending.at); }} oncancel={() => (pending = null)} />
-								{/if}
-							</div>
-						{/if}
-					</div>
-				{/each}
-
-				{#if section.blocks.length > 0}
-					<div class="add-end menu-anchor">
-						<button class="add-end-btn" onclick={() => (menuAt = menuAt === 'end' ? null : 'end')}><Icon name="plus" size={16} /> {tx('添加内容块', 'Add block')}</button>
-						{#if menuAt === 'end'}
-							<BlockMenu onpick={(t) => pickType('end', t)} onclose={() => (menuAt = null)} />
-						{/if}
-						{#if pending && pending.at === 'end'}
-							<div class="inserting" data-insert-composer>
-								<div class="composer-caption"><Icon name="map-pin" size={14} /> {tx('正在插入到：', 'Inserting at: ')}{resolvedPendingLabel}</div>
-								{#if pending.type === 'richtext'}
-									<LazyRichTextEditor onsave={(md) => createBlock({ type: 'richtext', markdown: md }, 'end')} oncancel={() => (pending = null)} />
-								{:else if pending.type === 'quiz'}
-									<QuizForm onsave={(quiz) => createQuizBlock(quiz, 'end')} oncancel={() => (pending = null)} />
-								{:else}
-									<BlockForm presetType={pending.type} lockType onsave={(b) => createBlock(b, 'end')} oncancel={() => (pending = null)} />
-								{/if}
-							</div>
-						{/if}
-					</div>
-				{/if}
 			{/if}
 		</article>
 
@@ -866,62 +611,27 @@
 					</label>
 				</section>
 
-				<section class="panel-card">
+				<section class="panel-card editor-tools">
 					<div class="panel-head">
 						<span class="panel-index">02</span>
 						<div>
-							<h3>{tx('插入模块', 'Insert module')}</h3>
-							<p>{tx('文字直接进入编辑器；媒体和题目可选择位置', 'Text goes into the editor; choose placement for media and quizzes')}</p>
+							<h3>{tx('编辑器插入', 'Editor inserts')}</h3>
+							<p>{tx('标题、提示和列表都会直接进入正文光标处', 'Everything goes directly into the rich text editor')}</p>
 						</div>
 					</div>
-					<label class="field">
-						<span>{tx('插入位置', 'Insertion point')}</span>
-						<select bind:value={insertTarget}>
-							<option value="start">{tx('章节开头', 'Section start')}</option>
-							{#each insertableBlocks as b, i (b.id)}
-								<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>
-							{/each}
-							<option value="end">{tx('章节末尾', 'Section end')}</option>
-						</select>
-					</label>
-					<div class="position-list" role="listbox" aria-label={tx('快速选择插入位置', 'Quick insertion point picker')}>
-						<button type="button" class:active={insertTarget === 'start'} onclick={() => (insertTarget = 'start')}>
-							<span class="pos-mark">0</span>
-							<span>{tx('章节开头', 'Section start')}</span>
+					<div class="editor-insert-grid">
+						<button type="button" class="tool-tile" onclick={() => insertIntoDocument('heading')}>
+							<span class="tile-icon"><Icon name="file-text" size={18} /></span>
+							<span><strong>{tx('标题', 'Heading')}</strong><small>{tx('插入到光标处', 'Insert at cursor')}</small></span>
 						</button>
-						{#each insertableBlocks as b, i (b.id)}
-							<button type="button" class:active={insertTarget === b.id} onclick={() => (insertTarget = b.id)}>
-								<span class="pos-mark">{i + 1}</span>
-								<span>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)}</span>
-								<small>{typeLabel(b.type)}</small>
-							</button>
-						{/each}
-						<button type="button" class:active={insertTarget === 'end'} onclick={() => (insertTarget = 'end')}>
-							<span class="pos-mark">+</span>
-							<span>{tx('章节末尾', 'Section end')}</span>
+						<button type="button" class="tool-tile" onclick={() => insertIntoDocument('callout')}>
+							<span class="tile-icon"><Icon name="info" size={18} /></span>
+							<span><strong>{tx('重点提示', 'Callout')}</strong><small>{tx('插入后在正文中编辑', 'Edit inline')}</small></span>
 						</button>
-					</div>
-					<div class="insert-hint">
-						<Icon name="map-pin" size={14} />
-						<span>{tx('文字模块插入到编辑器光标处；媒体/题目会插入到：', 'Text modules insert at the editor cursor; media/quizzes insert at: ')}{currentInsertionLabel}</span>
-					</div>
-					<div class="module-grid">
-						{#each SIDE_TYPES as t (t.type)}
-							<button
-								class="module-tile"
-								class:active={pending?.type === t.type}
-								title={isDocumentInsertType(t.type) ? tx('点击后直接插入到正文编辑器', 'Click to insert directly into the document editor') : tx('点击后在所选位置创建结构模块', 'Click to create a structured block at the selected position')}
-								aria-label={`${t.label()} · ${isDocumentInsertType(t.type) ? tx('点击后直接插入到正文编辑器', 'Click to insert directly into the document editor') : tx('点击后在所选位置创建结构模块', 'Click to create a structured block at the selected position')}`}
-								onclick={() => pickSideType(t.type)}
-							>
-								<span class="tile-icon"><Icon name={t.icon} size={18} /></span>
-								<span>
-									<strong>{t.label()}</strong>
-									<small>{t.desc()}</small>
-								</span>
-								<span class="tile-action" aria-hidden="true"><Icon name="plus" size={16} /></span>
-							</button>
-						{/each}
+						<button type="button" class="tool-tile" onclick={() => insertIntoDocument('list')}>
+							<span class="tile-icon"><Icon name="list" size={18} /></span>
+							<span><strong>{tx('列表', 'List')}</strong><small>{tx('每一项都可直接改写', 'Editable list')}</small></span>
+						</button>
 					</div>
 				</section>
 
@@ -930,16 +640,20 @@
 						<span class="panel-index">03</span>
 						<div>
 							<h3>{tx('导入素材', 'Import assets')}</h3>
-							<p>{tx('AI 转译会先生成可预览的富文本，再插入到所选位置', 'AI translation creates previewable rich text before insertion')}</p>
+							<p>{tx('图片、视频和 AI 转译都进入同一个正文编辑器', 'Images, videos, and AI translations stay in the same editor')}</p>
 						</div>
 					</div>
+					<label class="wide-action" class:busy={uploading}>
+						<Icon name="image" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('插入图片', 'Insert image')}
+						<input type="file" accept="image/*" hidden onchange={onMediaFile} disabled={uploading} />
+					</label>
+					<label class="wide-action" class:busy={uploading}>
+						<Icon name="video" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('插入视频', 'Insert video')}
+						<input type="file" accept="video/*" hidden onchange={onMediaFile} disabled={uploading} />
+					</label>
 					<label class="wide-action" class:busy={ingestBusy}>
 						<Icon name="sparkles" size={16} /> {ingestBusy ? tx('AI 转译中…', 'AI translating...') : tx('AI 转译 PDF / PPTX / Word', 'AI translate PDF / PPTX / Word')}
 						<input type="file" accept=".txt,.md,.markdown,.docx,.pdf,.pptx" hidden onchange={onIngestFile} disabled={ingestBusy} />
-					</label>
-					<label class="wide-action" class:busy={uploading}>
-						<Icon name="video" size={16} /> {uploading ? tx('上传中…', 'Uploading...') : tx('上传视频', 'Upload video')}
-						<input type="file" accept="video/*" hidden onchange={onVideoFile} disabled={uploading} />
 					</label>
 				</section>
 			</aside>
@@ -974,16 +688,10 @@
 			</aside>
 		</div>
 		<footer class="modal-foot">
-			<label class="pos">{tx('插入位置', 'Insertion point')}
-				<select bind:value={insertPos}>
-					<option value="start">{tx('章节开头', 'Section start')}</option>
-					{#each insertableBlocks as b, i (b.id)}<option value={b.id}>{tx(`第 ${i + 1} 块之后`, `After block ${i + 1}`)} · {typeLabel(b.type)}</option>{/each}
-					<option value="end">{tx('章节末尾', 'Section end')}</option>
-				</select>
-			</label>
+			<div class="pos"><Icon name="sparkles" size={15} /> {tx('确认后插入到正文编辑器当前光标处', 'Confirm to insert at the current editor cursor')}</div>
 			<div class="spacer"></div>
 			<button class="btn-sm ghost" onclick={cancelPreview} disabled={inserting}>{tx('取消', 'Cancel')}</button>
-			<button class="btn-sm primary" onclick={confirmInsert} disabled={inserting}>{inserting ? tx('插入中…', 'Inserting...') : tx(`确认插入(${previewBlocks.length} 块)`, `Insert ${previewBlocks.length} blocks`)}</button>
+			<button class="btn-sm primary" onclick={confirmInsert} disabled={inserting}>{inserting ? tx('插入中…', 'Inserting...') : tx(`插入到编辑器(${previewBlocks.length} 段)`, `Insert into editor (${previewBlocks.length})`)}</button>
 		</footer>
 	</div></div>
 {/if}
@@ -1203,9 +911,6 @@
 	.word-shell {
 		margin-top: var(--space-4);
 	}
-	.word-shell ~ .empty {
-		display: none;
-	}
 	.sidepanel {
 		position: sticky;
 		top: 132px;
@@ -1333,8 +1038,7 @@
 		color: var(--text-tertiary);
 		font-weight: 700;
 	}
-	.field input,
-	.field select {
+	.field input {
 		width: 100%;
 		min-height: 42px;
 		border: 1px solid var(--border-default);
@@ -1345,8 +1049,7 @@
 		font-size: var(--text-sm);
 		padding: var(--space-2) var(--space-3);
 	}
-	.field input:focus,
-	.field select:focus {
+	.field input:focus {
 		outline: none;
 		border-color: var(--brand-500);
 		box-shadow: 0 0 0 3px var(--brand-200);
@@ -1378,92 +1081,15 @@
 		transform: translateY(-1px);
 		box-shadow: var(--shadow-sm);
 	}
-	.position-list {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-		max-height: 220px;
-		overflow: auto;
-		margin-top: var(--space-2);
-		padding: var(--space-2);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-lg);
-		background:
-			linear-gradient(180deg, var(--surface-container), transparent),
-			var(--surface-page);
-	}
-	.position-list button {
-		width: 100%;
-		min-height: 40px;
-		display: grid;
-		grid-template-columns: 30px minmax(0, 1fr) auto;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-2);
-		border: 1px solid transparent;
-		border-radius: var(--radius-md);
-		background: transparent;
-		color: var(--text-secondary);
-		text-align: left;
-		cursor: pointer;
-		transition: var(--transition-fast);
-	}
-	.position-list button:hover,
-	.position-list button.active {
-		border-color: var(--accent-violet);
-		background: var(--accent-violet-bg);
-		color: var(--text-primary);
-	}
-	.position-list button.active {
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 26%, transparent);
-	}
-	.pos-mark {
-		width: 28px;
-		height: 28px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-md);
-		background: var(--surface-elevated);
-		border: 1px solid var(--border-default);
-		color: var(--accent-violet);
-		font-family: var(--font-mono);
-		font-size: var(--text-xs);
-		font-weight: 800;
-	}
-	.position-list small {
-		color: var(--text-tertiary);
-		font-size: var(--text-xs);
-		white-space: nowrap;
-	}
-	.insert-hint {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		margin-top: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid color-mix(in srgb, var(--accent-violet) 26%, var(--border-default));
-		border-radius: var(--radius-lg);
-		background:
-			linear-gradient(90deg, var(--accent-violet-bg), transparent),
-			var(--surface-container);
-		color: var(--text-secondary);
-		font-size: var(--text-xs);
-		font-weight: 700;
-	}
-	.insert-hint :global(svg) {
-		color: var(--accent-violet);
-		flex: 0 0 auto;
-	}
-	.module-grid {
+	.editor-insert-grid {
 		display: grid;
 		grid-template-columns: 1fr;
 		gap: var(--space-2);
 		margin-top: var(--space-3);
 	}
-	.module-tile {
+	.tool-tile {
 		display: grid;
-		grid-template-columns: 40px minmax(0, 1fr) 32px;
+		grid-template-columns: 40px minmax(0, 1fr);
 		align-items: center;
 		gap: var(--space-3);
 		width: 100%;
@@ -1481,60 +1107,47 @@
 		touch-action: manipulation;
 		transition: var(--transition-fast);
 	}
-	.module-tile:active {
+	.tool-tile:active {
 		transform: translateY(1px);
 	}
-	.module-tile:nth-child(1) {
+	.tool-tile:nth-child(1) {
 		--tile-accent: var(--accent-blue);
 		--tile-bg: var(--accent-blue-bg);
 	}
-	.module-tile:nth-child(2) {
+	.tool-tile:nth-child(2) {
 		--tile-accent: var(--accent-amber);
 		--tile-bg: var(--accent-amber-bg);
 	}
-	.module-tile:nth-child(3) {
+	.tool-tile:nth-child(3) {
 		--tile-accent: var(--accent-cyan);
 		--tile-bg: var(--accent-cyan-bg);
 	}
-	.module-tile:nth-child(4) {
+	.tool-tile:nth-child(4) {
 		--tile-accent: var(--accent-violet);
 		--tile-bg: var(--accent-violet-bg);
 	}
-	.module-tile:nth-child(5) {
+	.tool-tile:nth-child(5) {
 		--tile-accent: var(--accent-rose);
 		--tile-bg: var(--accent-rose-bg);
 	}
-	:global(:root[data-theme='dark']) .module-tile {
+	:global(:root[data-theme='dark']) .tool-tile {
 		background:
 			linear-gradient(90deg, var(--tile-bg, transparent), transparent 58%),
 			#080a0c;
 		border-color: color-mix(in srgb, var(--tile-accent, white) 18%, rgba(255, 255, 255, 0.08));
 	}
-	:global(:root[data-theme='dark']) .module-tile:hover,
-	:global(:root[data-theme='dark']) .module-tile.active {
+	:global(:root[data-theme='dark']) .tool-tile:hover {
 		background:
 			linear-gradient(180deg, var(--tile-bg, rgba(47, 212, 122, 0.075)), rgba(255, 255, 255, 0.012)),
 			#0b0e11;
 		border-color: color-mix(in srgb, var(--tile-accent, var(--brand-500)) 42%, rgba(255, 255, 255, 0.14));
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 	}
-	.module-tile:hover,
-	.module-tile.active {
+	.tool-tile:hover {
 		border-color: var(--tile-accent, var(--brand-500));
 		background:
 			linear-gradient(90deg, var(--tile-bg, var(--brand-50)), transparent 60%),
 			var(--surface-elevated);
-	}
-	.tile-action {
-		width: 30px;
-		height: 30px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-md);
-		background: var(--tile-bg, var(--brand-50));
-		color: var(--tile-accent, var(--text-brand));
-		border: 1px solid color-mix(in srgb, var(--tile-accent, var(--brand-500)) 24%, var(--border-default));
 	}
 	.tile-icon {
 		width: 40px;
@@ -1547,14 +1160,14 @@
 		border: 1px solid var(--border-default);
 		color: var(--tile-accent, var(--text-brand));
 	}
-	.module-tile strong,
-	.module-tile small {
+	.tool-tile strong,
+	.tool-tile small {
 		display: block;
 	}
-	.module-tile strong {
+	.tool-tile strong {
 		font-size: var(--text-sm);
 	}
-	.module-tile small {
+	.tool-tile small {
 		margin-top: 2px;
 		color: var(--text-tertiary);
 		font-size: var(--text-xs);
@@ -1585,125 +1198,6 @@
 		cursor: progress;
 	}
 
-	.empty {
-		border: 1px dashed var(--border-strong);
-		border-radius: var(--radius-2xl);
-		padding: var(--space-12) var(--space-8);
-		text-align: center;
-		background: var(--surface-elevated);
-	}
-	.empty-icon {
-		width: 48px;
-		height: 48px;
-		margin: 0 auto var(--space-3);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-full);
-		background: var(--brand-50);
-		border: 1px solid var(--brand-200);
-		color: var(--text-brand);
-		font-size: var(--text-xl);
-	}
-	.empty h3 {
-		margin: 0 0 var(--space-2);
-		color: var(--text-primary);
-	}
-	.empty p {
-		margin: 0 0 var(--space-5);
-		color: var(--text-tertiary);
-		font-size: var(--text-sm);
-	}
-	.empty-actions {
-		display: flex;
-		gap: var(--space-3);
-		justify-content: center;
-	}
-	.menu-anchor {
-		position: relative;
-		display: inline-block;
-	}
-
-	/* Block row with non-overlapping gutters */
-	.eb {
-		display: grid;
-		grid-template-columns: 56px minmax(0, 1fr) 178px;
-		align-items: start;
-		gap: var(--space-3);
-		margin-bottom: var(--space-3);
-		padding: var(--space-3);
-		border: 1px solid var(--border-default);
-		border-radius: var(--radius-xl);
-		background: var(--surface-elevated);
-		box-shadow: var(--shadow-sm);
-		transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
-	}
-	.eb.document-hidden {
-		display: none;
-	}
-	.eb:hover {
-		border-color: var(--border-strong);
-		box-shadow: var(--shadow-md);
-	}
-	.eb.dragover {
-		border-color: var(--brand-500);
-		transform: translateY(-1px);
-	}
-	.eb.dragging {
-		opacity: 0.5;
-	}
-	.gutter {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 2px;
-		opacity: 1;
-		padding-top: var(--space-1);
-	}
-	.gutter.right {
-		justify-content: flex-end;
-		gap: var(--space-1);
-	}
-	.g-btn {
-		width: 36px;
-		height: 36px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid var(--border-default);
-		background: var(--surface-elevated);
-		border-radius: var(--radius-md);
-		color: var(--text-secondary);
-		cursor: pointer;
-		font-size: var(--text-sm);
-	}
-	.g-btn:hover:not(:disabled) {
-		background: var(--surface-hover);
-		color: var(--text-primary);
-	}
-	.g-btn.add {
-		border-color: var(--brand-200);
-		background: var(--brand-50);
-		color: var(--text-brand);
-	}
-	.g-btn.handle {
-		cursor: grab;
-		font-size: 0;
-	}
-	.g-btn.handle::before {
-		content: '⋮⋮';
-		font-size: 14px;
-		letter-spacing: -4px;
-		transform: rotate(90deg);
-	}
-	.g-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-	.block-body {
-		min-width: 0;
-		padding: var(--space-1) 0;
-	}
 	.badge {
 		align-self: center;
 		font-family: var(--font-mono);
@@ -1714,32 +1208,6 @@
 		border: 1px solid var(--brand-200);
 		border-radius: var(--radius-sm);
 		padding: 1px var(--space-1);
-	}
-	.block-action {
-		min-height: 34px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-1);
-		padding: var(--space-1) var(--space-2);
-		border: 1px solid var(--border-default);
-		border-radius: var(--radius-md);
-		background: var(--surface-elevated);
-		color: var(--text-secondary);
-		font-size: var(--text-xs);
-		font-weight: 800;
-		white-space: nowrap;
-		cursor: pointer;
-		transition: var(--transition-fast);
-	}
-	.block-action:hover:not(:disabled) {
-		background: var(--surface-hover);
-		color: var(--text-primary);
-	}
-	.block-action.danger:hover:not(:disabled) {
-		border-color: var(--error);
-		background: var(--error-bg);
-		color: var(--error);
 	}
 	.quiz-ph {
 		display: flex;
@@ -1752,117 +1220,11 @@
 		color: var(--text-brand);
 		font-size: var(--text-sm);
 	}
-	.inserting {
-		margin: var(--space-4) 0;
-		padding: var(--space-3);
-		border: 1px solid color-mix(in srgb, var(--accent-violet) 30%, var(--border-default));
-		border-radius: var(--radius-xl);
-		background:
-			linear-gradient(180deg, var(--accent-violet-bg), transparent 38%),
-			var(--surface-elevated);
-		box-shadow: var(--shadow-md);
-	}
-	.inserting.after {
-		grid-column: 1 / -1;
-	}
-	.composer-caption {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-		margin-bottom: var(--space-3);
-		padding: var(--space-1) var(--space-3);
-		border-radius: var(--radius-full);
-		background: var(--accent-violet-bg);
-		color: var(--accent-violet);
-		font-size: var(--text-xs);
-		font-weight: 900;
-	}
-	.add-end {
-		display: block;
-		margin-top: var(--space-3);
-	}
-	.add-end-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-1);
-		width: 100%;
-		padding: var(--space-3);
-		border: 1px dashed var(--border-strong);
-		border-radius: var(--radius-lg);
-		background: transparent;
-		color: var(--text-tertiary);
-		font-size: var(--text-sm);
-		cursor: pointer;
-		transition: var(--transition-fast);
-	}
-	.add-end-btn:hover {
-		border-color: var(--brand-500);
-		color: var(--text-brand);
-		background: var(--surface-hover);
-	}
-
 	.hint {
 		font-size: var(--text-xs);
 		color: var(--text-tertiary);
 		margin: var(--space-1) 0 var(--space-3);
 	}
-	/* Editor preview of a quiz block: question + options with the answer marked. */
-	.quiz-card {
-		border: 1px solid var(--border-default);
-		border-radius: var(--radius-lg);
-		background: var(--surface-subtle);
-		padding: var(--space-4);
-	}
-	.qc-head {
-		display: flex;
-		align-items: flex-start;
-		gap: var(--space-2);
-		margin-bottom: var(--space-3);
-	}
-	.q-badge {
-		flex: none;
-		margin-top: 2px;
-		font-family: var(--font-mono);
-		font-size: var(--text-xs);
-		color: var(--text-brand);
-		background: var(--brand-50);
-		border: 1px solid var(--brand-200);
-		border-radius: var(--radius-sm);
-		padding: 1px var(--space-2);
-	}
-	.qc-q {
-		margin: 0;
-		font-weight: 700;
-		color: var(--text-primary);
-	}
-	.qc-opts {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-	}
-	.qc-opts li {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		font-size: var(--text-sm);
-		color: var(--text-tertiary);
-	}
-	.qc-opts li.correct {
-		color: var(--text-brand);
-		font-weight: 600;
-	}
-	.qc-mark {
-		display: inline-flex;
-		width: 16px;
-		justify-content: center;
-		color: var(--brand-500);
-	}
-
-	.btn,
 	.btn-sm {
 		display: inline-flex;
 		align-items: center;
@@ -1872,10 +1234,6 @@
 		font-weight: 600;
 		cursor: pointer;
 		transition: var(--transition-base);
-	}
-	.btn {
-		padding: var(--space-2) var(--space-5);
-		font-size: var(--text-sm);
 	}
 	.btn-sm {
 		padding: var(--space-1) var(--space-3);
@@ -2043,14 +1401,6 @@
 		font-size: var(--text-sm);
 		color: var(--text-secondary);
 	}
-	.pos select {
-		padding: var(--space-1) var(--space-2);
-		border: 1px solid var(--border-default);
-		border-radius: var(--radius-md);
-		background: var(--surface-page);
-		color: var(--text-primary);
-	}
-
 	@media (max-width: 768px) {
 		.es {
 			height: auto;
@@ -2066,6 +1416,7 @@
 			gap: var(--space-4);
 		}
 		.bar {
+			position: static;
 			align-items: stretch;
 			padding: var(--space-3) var(--space-4);
 		}
@@ -2095,25 +1446,12 @@
 		.panel-card {
 			padding: var(--space-3);
 		}
-		.module-grid {
+		.editor-insert-grid {
 			grid-template-columns: 1fr;
-		}
-		.eb {
-			grid-template-columns: 1fr;
-			gap: var(--space-1);
-			padding: var(--space-3);
-		}
-		.gutter {
-			opacity: 1;
-		}
-		.gutter.right {
-			justify-content: flex-start;
-			flex-wrap: wrap;
 		}
 		.badge {
 			margin-right: auto;
 		}
-		.empty-actions,
 		.modal-foot,
 		.pos {
 			flex-direction: column;
