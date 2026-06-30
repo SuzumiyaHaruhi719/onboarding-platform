@@ -27,6 +27,33 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isWin = process.platform === 'win32';
 
+// ── 诊断探针(无条件最先执行)──────────────────────────────────────
+// 用途:确认本脚本是否真的被 supervisor 调用、以及调用时的环境。
+// 同步写入,任何后续崩溃都不会丢失这条记录。文件 deploy 后即可在目标机读取。
+// 排查完毕后可删除本块。
+try {
+	const probeFile = path.join(root, '.boot-probe.log');
+	const redact = (k, v) =>
+		/PASS|TOKEN|SECRET|KEY/i.test(k) ? '***' : v;
+	const envDump = Object.fromEntries(
+		Object.entries(process.env).map(([k, v]) => [k, redact(k, v)])
+	);
+	const rec =
+		`=== ${new Date().toISOString()} ===\n` +
+		`argv: ${JSON.stringify(process.argv)}\n` +
+		`node: ${process.execPath} (${process.versions.node})\n` +
+		`cwd: ${process.cwd()}\n` +
+		`root: ${root}\n` +
+		`isTTY(stdout): ${!!process.stdout.isTTY}\n` +
+		`SUPERVISOR_ENABLED: ${process.env.SUPERVISOR_ENABLED ?? '(unset)'}\n` +
+		`NODE_ENV: ${process.env.NODE_ENV ?? '(unset)'}\n` +
+		`ONBOARDING_SERVE: ${process.env.ONBOARDING_SERVE ?? '(unset)'}\n` +
+		`env: ${JSON.stringify(envDump)}\n\n`;
+	fs.appendFileSync(probeFile, rec);
+} catch (e) {
+	// 探针失败不影响主流程。
+}
+
 const DESIRED_PORT = 5180;
 const PORT_SCAN_SPAN = 50; // 5180..5229
 const HOST = '127.0.0.1'; // 比 localhost 更稳:不受系统代理(如 Clash)影响
