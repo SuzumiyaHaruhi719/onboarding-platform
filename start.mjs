@@ -78,6 +78,51 @@ function run(parts, env = {}) {
 	});
 }
 
+/**
+ * npm 的可执行路径:优先取「当前 node 同目录」下的 npm(避免依赖 supervisor 的 PATH),
+ * 找不到才回退裸 'npm'(交给 shell 的 PATH 查找)。Windows 用 npm.cmd。
+ */
+function npmBin() {
+	const nodeDir = path.dirname(process.execPath);
+	const cand = isWin ? 'npm.cmd' : 'npm';
+	const full = path.join(nodeDir, cand);
+	return fs.existsSync(full) ? full : 'npm';
+}
+
+/**
+ * 生产模式专用的命令运行器:总是用 shell 执行(让 PATH/npm.cmd 解析生效),
+ * 并把 stdout+stderr 同时输出到控制台和 start.log,便于排查 supervisor 下的失败。
+ * 返回 {code, ok}。parts[0] 若是 'npm' 会替换成 npmBin() 解析出的绝对路径。
+ */
+function runProd(parts, logStream, env = {}) {
+	const parts2 = parts.slice();
+	if (parts2[0] === 'npm') parts2[0] = npmBin();
+	const cmd = parts2.join(' ');
+	const opts = {
+		stdio: ['ignore', 'pipe', 'pipe'],
+		cwd: root,
+		shell: true,
+		env: { ...process.env, ...env }
+	};
+	return new Promise((resolve) => {
+		const child = spawn(cmd, opts);
+		const line = (b) => b.toString();
+		child.stdout.on('data', (d) => {
+			process.stdout.write(d);
+			logStream.write(line(d));
+		});
+		child.stderr.on('data', (d) => {
+			process.stderr.write(d);
+			logStream.write(line(d));
+		});
+		child.on('error', (e) => {
+			logStream.write(`[spawn error] ${e.message}\n`);
+			resolve({ code: -1, ok: false, err: e });
+		});
+		child.on('exit', (code) => resolve({ code: code ?? -1, ok: code === 0 }));
+	});
+}
+
 /** 端口能否被监听(空闲)。 */
 function isPortFree(port) {
 	return new Promise((resolve) => {
@@ -168,54 +213,52 @@ function buildStale() {
 // ───────────────────────── 生产/守护模式 ─────────────────────────
 
 /** 装依赖(缺才装)。优先 npm ci(锁版本、快),失败回退 npm install。 */
-async function ensureDeps() {
+async function ensureDeps(logStream, env = {}) {
 	if (fs.existsSync(path.join(root, 'node_modules'))) {
 		log('依赖已就绪 ✓');
 		return;
 	}
 	log('node_modules 缺失,安装依赖中……');
-	try {
-		await run(['npm', 'ci']);
-	} catch {
-		warn('npm ci 失败(可能无 package-lock.json),回退 npm install……');
-		await run(['npm', 'install']);
+	let r = await runProd(['npm', 'ci'], logStream, env);
+	if (!r.ok) {
+		warn(`npm ci 失败(code ${r.code}),回退 npm install……`);
+		r = await runProd(['npm', 'install'], logStream, env);
 	}
+	if (!r.ok) throw new Error(`安装依赖失败(code ${r.code})`);
 }
 
-/** 生产构建(缺/旧才构建)。构建失败时假定 node_modules 损坏(常见于上次安装被中断),
+/** 生产构建(缺/旧才构建)。构建失败时假定 node_modules 损坏(上次安装被中断遗留),
  *  清掉重装后再试一次。 */
-async function ensureBuild() {
+async function ensureBuild(logStream, env = {}) {
 	if (!buildStale()) {
 		log('生产构建已就绪 ✓');
 		return;
 	}
 	log('生产构建缺失或过期,执行 npm run build……');
-	try {
-		await run(['npm', 'run', 'build']);
-		return;
-	} catch (e) {
-		warn(`构建失败:${e.message}。假定 node_modules 损坏,清掉重装后重试……`);
-	}
-	// 自愈:删 node_modules + build,重装,再构建。
+	let r = await runProd(['npm', 'run', 'build'], logStream, env);
+	if (r.ok) return;
+	warn(`构建失败(code ${r.code})。假定 node_modules 损坏,清掉重装后重试……`);
 	fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
 	fs.rmSync(path.join(root, 'build'), { recursive: true, force: true });
-	await run(['npm', 'install']);
-	await run(['npm', 'run', 'build']);
+	await ensureDeps(logStream, env);
+	r = await runProd(['npm', 'run', 'build'], logStream, env);
+	if (!r.ok) throw new Error(`构建失败(code ${r.code})`);
 }
 
 /** 建表(缺才建)。绝不 seed,以免清空已有数据。 */
-async function ensureDb(envVars) {
+async function ensureDb(logStream, envVars) {
 	const dbFile = path.resolve(root, envVars.DATABASE_URL || 'data.sqlite');
 	if (fs.existsSync(dbFile)) {
 		log('数据库已存在 ✓');
 		return;
 	}
 	log('数据库缺失,执行 db:push 建表……(不 seed,避免覆盖数据)');
-	await run(['npm', 'run', 'db:push'], envVars);
+	const r = await runProd(['npm', 'run', 'db:push'], logStream, envVars);
+	if (!r.ok) throw new Error(`建表失败(code ${r.code})`);
 }
 
 /** 启动 adapter-node 生产服务器:node build/index.js,绑定 0.0.0.0:PORT。 */
-function serveProd(envVars) {
+function serveProd(envVars, logStream) {
 	const port = String(envVars.PORT || process.env.PORT || DESIRED_PORT);
 	const host = String(envVars.HOST || process.env.HOST || '0.0.0.0');
 	const origin = envVars.ORIGIN || process.env.ORIGIN || `http://${host}:${port}`;
@@ -228,10 +271,10 @@ function serveProd(envVars) {
 	};
 	const entry = path.join(root, 'build', 'index.js');
 	if (!fs.existsSync(entry)) {
-		fail(`找不到生产入口 ${entry}(构建可能失败)。`);
-		process.exit(1);
+		throw new Error(`找不到生产入口 ${entry}(构建可能失败)`);
 	}
 	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
+	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port}\n`);
 	const server = launch(['node', entry], prodEnv);
 	server.on('error', (e) => {
 		fail(`生产服务器启动失败:${e.message}`);
@@ -250,7 +293,12 @@ async function serveProdMode() {
 		fail(`需要 Node 20 或更高(当前 ${process.versions.node})。`);
 		process.exit(1);
 	}
-	log(`生产模式 · Node ${process.versions.node}`);
+	// 打开 start.log(追加),所有自举输出都 tee 进去,supervisor 失败后可读明文原因。
+	const logFile = path.join(root, 'start.log');
+	const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+	const stamp = `[${new Date().toISOString()}] === 生产模式启动 · Node ${process.versions.node} · cwd ${root} ===\n`;
+	logStream.write(stamp);
+	log(`生产模式 · Node ${process.versions.node}(日志 → start.log)`);
 
 	const envPath = path.join(root, '.env');
 	const examplePath = path.join(root, '.env.example');
@@ -261,20 +309,17 @@ async function serveProdMode() {
 	const envVars = parseEnv(envPath);
 
 	try {
-		await ensureDeps();
-		await ensureBuild();
-		await ensureDb(envVars);
+		await ensureDeps(logStream, envVars);
+		await ensureBuild(logStream, envVars);
+		await ensureDb(logStream, envVars);
+		serveProd(envVars, logStream);
 	} catch (e) {
-		// 自举失败(装依赖/构建/建表):写明文日志,便于排查,supervisor 也能 restart。
-		const logFile = path.join(root, 'start.log');
-		fs.writeFileSync(
-			logFile,
-			`[${new Date().toISOString()}] 自举失败: ${e.message || String(e)}\n`
-		);
-		fail(`自举失败: ${e.message || String(e)}(详见 ${logFile})`);
+		const msg = e.message || String(e);
+		logStream.write(`[${new Date().toISOString()}] 自举失败: ${msg}\n`);
+		logStream.end();
+		fail(`自举失败: ${msg}(详见 start.log)`);
 		process.exit(1);
 	}
-	serveProd(envVars);
 }
 
 // ───────────────────────── 交互式开发模式 ─────────────────────────
