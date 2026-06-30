@@ -32,9 +32,18 @@ const PORT_SCAN_SPAN = 50; // 5180..5229
 const HOST = '127.0.0.1'; // 比 localhost 更稳:不受系统代理(如 Clash)影响
 const READY_TIMEOUT_MS = 90_000;
 
-/** 生产模式开关:supervisor / 容器里把 NODE_ENV 设成 production 即走生产路径。 */
+/**
+ * 生产模式开关。
+ * 触发条件(任一即可,覆盖常见守护/容器场景):
+ *  - SUPERVISOR_ENABLED=1:supervisord 启动每个 program 时自动注入,无需改配置;
+ *  - NODE_ENV=production:通用约定;
+ *  - ONBOARDING_SERVE=prod:显式开关。
+ * 否则视为交互式本地开发。
+ */
 const PROD_MODE =
-	process.env.NODE_ENV === 'production' || process.env.ONBOARDING_SERVE === 'prod';
+	process.env.SUPERVISOR_ENABLED === '1' ||
+	process.env.NODE_ENV === 'production' ||
+	process.env.ONBOARDING_SERVE === 'prod';
 
 function log(msg) {
 	console.log(`\x1b[36m[onboarding]\x1b[0m ${msg}`);
@@ -173,13 +182,24 @@ async function ensureDeps() {
 	}
 }
 
-/** 生产构建(缺/旧才构建)。 */
+/** 生产构建(缺/旧才构建)。构建失败时假定 node_modules 损坏(常见于上次安装被中断),
+ *  清掉重装后再试一次。 */
 async function ensureBuild() {
 	if (!buildStale()) {
 		log('生产构建已就绪 ✓');
 		return;
 	}
 	log('生产构建缺失或过期,执行 npm run build……');
+	try {
+		await run(['npm', 'run', 'build']);
+		return;
+	} catch (e) {
+		warn(`构建失败:${e.message}。假定 node_modules 损坏,清掉重装后重试……`);
+	}
+	// 自愈:删 node_modules + build,重装,再构建。
+	fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
+	fs.rmSync(path.join(root, 'build'), { recursive: true, force: true });
+	await run(['npm', 'install']);
 	await run(['npm', 'run', 'build']);
 }
 
@@ -240,9 +260,20 @@ async function serveProdMode() {
 	}
 	const envVars = parseEnv(envPath);
 
-	await ensureDeps();
-	await ensureBuild();
-	await ensureDb(envVars);
+	try {
+		await ensureDeps();
+		await ensureBuild();
+		await ensureDb(envVars);
+	} catch (e) {
+		// 自举失败(装依赖/构建/建表):写明文日志,便于排查,supervisor 也能 restart。
+		const logFile = path.join(root, 'start.log');
+		fs.writeFileSync(
+			logFile,
+			`[${new Date().toISOString()}] 自举失败: ${e.message || String(e)}\n`
+		);
+		fail(`自举失败: ${e.message || String(e)}(详见 ${logFile})`);
+		process.exit(1);
+	}
 	serveProd(envVars);
 }
 
