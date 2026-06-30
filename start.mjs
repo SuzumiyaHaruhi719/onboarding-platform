@@ -2,11 +2,20 @@
 /**
  * 一键拉起脚本 / One-click launcher.
  *
- * 干的事:检查 Node 环境 → 装依赖(缺才装)→ 准备 .env → 首次自动建表+填种子
- * → 从 5180 起找一个空闲端口(被占用就自动换并显示)→ 启动 dev server
- * → 服务就绪后在默认浏览器打开。
+ * 两种运行模式:
+ *  - 交互式(默认,人类本地开发):检查 Node 环境 → 装依赖(缺才装)→ 准备 .env
+ *    → 首次自动建表+填种子 → 从 5180 起找一个空闲端口 → 启动 dev server
+ *    → 服务就绪后在默认浏览器打开。
+ *  - 生产/守护模式(NODE_ENV=production 或 ONBOARDING_SERVE=prod):装依赖(缺才装)
+ *    → 生产构建(缺/旧才构建)→ 建表(缺才建,绝不 seed)→ 启动 adapter-node 生产服务器
+ *    (node build/index.js),绑定 HOST=0.0.0.0、PORT=5180(可被环境变量覆盖)。
+ *    供 supervisor / 容器守护:幂等、不装浏览器、不扫端口、失败即退出。
  *
  * 纯 Node 内置模块,零额外依赖。跨平台(Windows / macOS / Linux)。
+ *
+ * 为什么有生产模式:部署流水线(front_npm_run2)只 rsync 源码(排除 node_modules/.env/.git),
+ * 由 supervisor 跑 `npm start` → 本脚本。生产模式让本脚本在裸目标机上自举:
+ * 装依赖 → 构建 → 建表 → 起生产服务器,从而无需改 playbook 即可修复 spawn error。
  */
 
 import net from 'node:net';
@@ -22,6 +31,10 @@ const DESIRED_PORT = 5180;
 const PORT_SCAN_SPAN = 50; // 5180..5229
 const HOST = '127.0.0.1'; // 比 localhost 更稳:不受系统代理(如 Clash)影响
 const READY_TIMEOUT_MS = 90_000;
+
+/** 生产模式开关:supervisor / 容器里把 NODE_ENV 设成 production 即走生产路径。 */
+const PROD_MODE =
+	process.env.NODE_ENV === 'production' || process.env.ONBOARDING_SERVE === 'prod';
 
 function log(msg) {
 	console.log(`\x1b[36m[onboarding]\x1b[0m ${msg}`);
@@ -117,7 +130,125 @@ function parseEnv(file) {
 	return out;
 }
 
-async function main() {
+/** 取目录下最新文件的 mtime(ms);空目录返回 0。用于判断构建是否过期。 */
+function newestMtime(dir) {
+	if (!fs.existsSync(dir)) return 0;
+	let max = 0;
+	for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+		const p = path.join(dir, e.name);
+		const t = fs.statSync(p).mtimeMs;
+		if (t > max) max = t;
+	}
+	return max;
+}
+
+/** 生产构建是否需要(重新)执行:build/index.js 不存在,或比 src/ 旧。 */
+function buildStale() {
+	const entry = path.join(root, 'build', 'index.js');
+	if (!fs.existsSync(entry)) return true;
+	const builtAt = fs.statSync(entry).mtimeMs;
+	const srcAt = newestMtime(path.join(root, 'src'));
+	const svelteCfg = path.join(root, 'svelte.config.js');
+	const cfgAt = fs.existsSync(svelteCfg) ? fs.statSync(svelteCfg).mtimeMs : 0;
+	const pkgAt = fs.existsSync(path.join(root, 'package.json'))
+		? fs.statSync(path.join(root, 'package.json')).mtimeMs
+		: 0;
+	return builtAt < srcAt || builtAt < cfgAt || builtAt < pkgAt;
+}
+
+// ───────────────────────── 生产/守护模式 ─────────────────────────
+
+/** 装依赖(缺才装)。优先 npm ci(锁版本、快),失败回退 npm install。 */
+async function ensureDeps() {
+	if (fs.existsSync(path.join(root, 'node_modules'))) {
+		log('依赖已就绪 ✓');
+		return;
+	}
+	log('node_modules 缺失,安装依赖中……');
+	try {
+		await run(['npm', 'ci']);
+	} catch {
+		warn('npm ci 失败(可能无 package-lock.json),回退 npm install……');
+		await run(['npm', 'install']);
+	}
+}
+
+/** 生产构建(缺/旧才构建)。 */
+async function ensureBuild() {
+	if (!buildStale()) {
+		log('生产构建已就绪 ✓');
+		return;
+	}
+	log('生产构建缺失或过期,执行 npm run build……');
+	await run(['npm', 'run', 'build']);
+}
+
+/** 建表(缺才建)。绝不 seed,以免清空已有数据。 */
+async function ensureDb(envVars) {
+	const dbFile = path.resolve(root, envVars.DATABASE_URL || 'data.sqlite');
+	if (fs.existsSync(dbFile)) {
+		log('数据库已存在 ✓');
+		return;
+	}
+	log('数据库缺失,执行 db:push 建表……(不 seed,避免覆盖数据)');
+	await run(['npm', 'run', 'db:push'], envVars);
+}
+
+/** 启动 adapter-node 生产服务器:node build/index.js,绑定 0.0.0.0:PORT。 */
+function serveProd(envVars) {
+	const port = String(envVars.PORT || process.env.PORT || DESIRED_PORT);
+	const host = String(envVars.HOST || process.env.HOST || '0.0.0.0');
+	const origin = envVars.ORIGIN || process.env.ORIGIN || `http://${host}:${port}`;
+	const prodEnv = {
+		...envVars,
+		PORT: port,
+		HOST: host,
+		ORIGIN: origin,
+		NODE_ENV: 'production'
+	};
+	const entry = path.join(root, 'build', 'index.js');
+	if (!fs.existsSync(entry)) {
+		fail(`找不到生产入口 ${entry}(构建可能失败)。`);
+		process.exit(1);
+	}
+	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
+	const server = launch(['node', entry], prodEnv);
+	server.on('error', (e) => {
+		fail(`生产服务器启动失败:${e.message}`);
+		process.exit(1);
+	});
+	server.on('exit', (code) => process.exit(code ?? 1));
+	// 转发信号,supervisor 优雅重启。
+	for (const sig of ['SIGINT', 'SIGTERM']) {
+		process.on(sig, () => server.kill(sig));
+	}
+}
+
+async function serveProdMode() {
+	const major = Number(process.versions.node.split('.')[0]);
+	if (major < 20) {
+		fail(`需要 Node 20 或更高(当前 ${process.versions.node})。`);
+		process.exit(1);
+	}
+	log(`生产模式 · Node ${process.versions.node}`);
+
+	const envPath = path.join(root, '.env');
+	const examplePath = path.join(root, '.env.example');
+	if (!fs.existsSync(envPath) && fs.existsSync(examplePath)) {
+		fs.copyFileSync(examplePath, envPath);
+		log('已从 .env.example 生成 .env');
+	}
+	const envVars = parseEnv(envPath);
+
+	await ensureDeps();
+	await ensureBuild();
+	await ensureDb(envVars);
+	serveProd(envVars);
+}
+
+// ───────────────────────── 交互式开发模式 ─────────────────────────
+
+async function devMode() {
 	// 1) Node 版本闸:Vite 8 / Svelte 5 需要 Node 20+。
 	const major = Number(process.versions.node.split('.')[0]);
 	if (major < 20) {
@@ -184,6 +315,14 @@ async function main() {
 		openBrowser(url);
 	} catch (e) {
 		warn(`未能确认服务就绪(${e.message}),请手动访问 ${url}`);
+	}
+}
+
+async function main() {
+	if (PROD_MODE) {
+		await serveProdMode();
+	} else {
+		await devMode();
 	}
 }
 
