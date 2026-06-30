@@ -37,13 +37,16 @@ const READY_TIMEOUT_MS = 90_000;
  * 触发条件(任一即可,覆盖常见守护/容器场景):
  *  - SUPERVISOR_ENABLED=1:supervisord 启动每个 program 时自动注入,无需改配置;
  *  - NODE_ENV=production:通用约定;
- *  - ONBOARDING_SERVE=prod:显式开关。
- * 否则视为交互式本地开发。
+ *  - ONBOARDING_SERVE=prod:显式开关;
+ *  - 非 TTY(supervisor/容器/systemd 等守护进程均无终端):兜底默认生产,
+ *    仅交互式终端(`node start.mjs` 人类运行、双击 start.sh/cmd)才走开发模式。
+ *    这是唯一不依赖「守护进程恰好设置了某环境变量」的可靠信号。
  */
 const PROD_MODE =
 	process.env.SUPERVISOR_ENABLED === '1' ||
 	process.env.NODE_ENV === 'production' ||
-	process.env.ONBOARDING_SERVE === 'prod';
+	process.env.ONBOARDING_SERVE === 'prod' ||
+	!process.stdout.isTTY;
 
 function log(msg) {
 	console.log(`\x1b[36m[onboarding]\x1b[0m ${msg}`);
