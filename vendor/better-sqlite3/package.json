@@ -1,0 +1,7 @@
+{
+  "name": "better-sqlite3",
+  "version": "12.10.0",
+  "main": "index.mjs",
+  "type": "module",
+  "description": "Local shim: re-exports node:sqlite as better-sqlite3-compatible API. NOT the real package. Used to avoid native compilation on RHEL 8.7 (glibc 2.28)."
+}
