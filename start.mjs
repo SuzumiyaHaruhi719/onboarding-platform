@@ -290,7 +290,7 @@ async function ensureDb(logStream, envVars) {
 /** 启动 adapter-node 生产服务器:node build/index.js,绑定 0.0.0.0:PORT。 */
 function serveProd(envVars, logStream) {
 	const port = String(envVars.PORT || process.env.PORT || DESIRED_PORT);
-	const host = String(envVars.HOST || process.env.HOST || '0.0.0.0');
+	const host = '0.0.0.0'; // 强制绑定所有接口,确保健康检查可达(不受 .env/环境变量覆盖)
 	const origin = envVars.ORIGIN || process.env.ORIGIN || `http://${host}:${port}`;
 	const prodEnv = {
 		...envVars,
