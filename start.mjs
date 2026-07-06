@@ -374,17 +374,39 @@ const _env = function(name, fallback) {
 	const serverEnv = { ...process.env, ...prodEnv, HOST: host, ONBOARDING_SVELTEKIT_HOST: host, ONBOARDING_SVELTEKIT_PORT: port };
 	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port} | serverEnv.HOST=${serverEnv.HOST} ONBOARDING_SVELTEKIT_HOST=${serverEnv.ONBOARDING_SVELTEKIT_HOST || '(unset)'}\n`);
 	const opts = { stdio: 'inherit', cwd: root, env: serverEnv };
-	// === 诊断:先启动一个极简 HTTP 服务器在 5181 端口,确认网络层是否通 ===
-	// 如果 demo-onboarding.glp.com.cn:5181 能通而 5180 不通,说明是应用问题;
-	// 如果两个都不通,说明是 Nginx → 10.97.138.202 网络/防火墙问题。
-	const diagServer = http.createServer((req, res) => {
-		res.writeHead(200, { 'Content-Type': 'text/plain' });
-		res.end('diag OK');
+
+	// === 终极方案:反向代理绑定 0.0.0.0:5180 → 127.0.0.1:5181 ===
+	// 即使 adapter-node 绑了 127.0.0.1:5181,这个代理绑 0.0.0.0:5180
+	// 确保外部 Nginx 能通过 10.97.138.202:5180 访问。
+	const APP_PORT = 5181; // adapter-node 实际绑定端口
+	serverEnv.PORT = String(APP_PORT);
+	serverEnv.ONBOARDING_SVELTEKIT_PORT = String(APP_PORT);
+	const proxy = http.createServer((req, res) => {
+		const proxyReq = http.request({
+			hostname: '127.0.0.1',
+			port: APP_PORT,
+			path: req.url,
+			method: req.method,
+			headers: req.headers
+		}, (proxyRes) => {
+			res.writeHead(proxyRes.statusCode, proxyRes.headers);
+			proxyRes.pipe(res);
+		});
+		proxyReq.on('error', (e) => {
+			res.writeHead(502);
+			res.end('Proxy error: ' + e.message);
+		});
+		req.pipe(proxyReq);
 	});
-	diagServer.listen(5181, '0.0.0.0', () => {
-		log('诊断服务器已启动 http://0.0.0.0:5181/');
-		logStream.write(`[${new Date().toISOString()}] diag server listening on 0.0.0.0:5181\n`);
+	proxy.listen(Number(port), '0.0.0.0', () => {
+		log(`反向代理 0.0.0.0:${port} → 127.0.0.1:${APP_PORT}`);
+		logStream.write(`[${new Date().toISOString()}] proxy 0.0.0.0:${port} → 127.0.0.1:${APP_PORT}\n`);
 	});
+	proxy.on('error', (e) => {
+		fail(`反向代理失败: ${e.message}`);
+		logStream.write(`[${new Date().toISOString()}] proxy error: ${e.message}\n`);
+	});
+
 	const server = spawn('node', [entry], opts);
 	server.on('error', (e) => {
 		fail(`生产服务器启动失败:${e.message}`);
