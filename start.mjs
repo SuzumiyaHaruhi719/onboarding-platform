@@ -373,6 +373,18 @@ const _env = function(name, fallback) {
 	const serverEnv = { ...process.env, ...prodEnv, HOST: host, ONBOARDING_SVELTEKIT_HOST: host, ONBOARDING_SVELTEKIT_PORT: port };
 	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port} | serverEnv.HOST=${serverEnv.HOST} ONBOARDING_SVELTEKIT_HOST=${serverEnv.ONBOARDING_SVELTEKIT_HOST || '(unset)'}\n`);
 	const opts = { stdio: 'inherit', cwd: root, env: serverEnv };
+	// === 诊断:先启动一个极简 HTTP 服务器在 5181 端口,确认网络层是否通 ===
+	// 如果 demo-onboarding.glp.com.cn:5181 能通而 5180 不通,说明是应用问题;
+	// 如果两个都不通,说明是 Nginx → 10.97.138.202 网络/防火墙问题。
+	const http = await import('node:http');
+	const diagServer = http.createServer((req, res) => {
+		res.writeHead(200, { 'Content-Type': 'text/plain' });
+		res.end('diag OK');
+	});
+	diagServer.listen(5181, '0.0.0.0', () => {
+		log('诊断服务器已启动 http://0.0.0.0:5181/');
+		logStream.write(`[${new Date().toISOString()}] diag server listening on 0.0.0.0:5181\n`);
+	});
 	const server = spawn('node', [entry], opts);
 	server.on('error', (e) => {
 		fail(`生产服务器启动失败:${e.message}`);
