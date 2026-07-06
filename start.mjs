@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import http from 'node:http';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isWin = process.platform === 'win32';
@@ -376,7 +377,6 @@ const _env = function(name, fallback) {
 	// === 诊断:先启动一个极简 HTTP 服务器在 5181 端口,确认网络层是否通 ===
 	// 如果 demo-onboarding.glp.com.cn:5181 能通而 5180 不通,说明是应用问题;
 	// 如果两个都不通,说明是 Nginx → 10.97.138.202 网络/防火墙问题。
-	const http = await import('node:http');
 	const diagServer = http.createServer((req, res) => {
 		res.writeHead(200, { 'Content-Type': 'text/plain' });
 		res.end('diag OK');
