@@ -293,22 +293,42 @@ function serveProd(envVars, logStream) {
 	const host = '0.0.0.0'; // 强制绑定所有接口,确保健康检查可达(不受 .env/环境变量覆盖)
 	const origin = envVars.ORIGIN || process.env.ORIGIN || `http://${host}:${port}`;
 	// 注意:HOST 放在最后,确保不被 ...envVars 或 process.env 中的值覆盖
+	// 同时传 HOST 和 ONBOARDING_SVELTEKIT_HOST(envPrefix),双保险
 	const prodEnv = {
 		PORT: port,
 		ORIGIN: origin,
 		NODE_ENV: 'production',
+		HOST: host,
+		ONBOARDING_SVELTEKIT_HOST: host,
+		ONBOARDING_SVELTEKIT_PORT: port,
 		...envVars,
-		HOST: host // 最终覆盖,必须在最后
+		HOST: host, // 最终覆盖,必须在最后
+		ONBOARDING_SVELTEKIT_HOST: host // envPrefix 版本也必须在最后
 	};
 	const entry = path.join(root, 'build', 'index.js');
 	if (!fs.existsSync(entry)) {
 		throw new Error(`找不到生产入口 ${entry}(构建可能失败)`);
 	}
+	// 强制 patch build/env.js:确保 env_prefix 为空,adapter-node 直接读 process.env.HOST。
+	// 这解决了 envPrefix 设了 ONBOARDING_SVELTEKIT_ 但目标机上 build 未重建的问题。
+	const envJs = path.join(root, 'build', 'env.js');
+	if (fs.existsSync(envJs)) {
+		const content = fs.readFileSync(envJs, 'utf8');
+		if (content.includes('env_prefix') && !content.includes('env_prefix = ""')) {
+			const patched = content.replace(
+				/const env_prefix = "[^"]*"/,
+				'const env_prefix = ""'
+			);
+			fs.writeFileSync(envJs, patched, 'utf8');
+			log('已 patch build/env.js: env_prefix → "" (确保 HOST=0.0.0.0 生效)');
+			logStream.write(`[${new Date().toISOString()}] patched build/env.js env_prefix → ""\n`);
+		}
+	}
 	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
 	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port}\n`);
 	// launch 内部会做 { ...process.env, ...env } — 但 process.env 里可能有 supervisor 的 HOST。
 	// 所以这里再包一层,确保 HOST=0.0.0.0 在 process.env 展开之后。
-	const serverEnv = { ...process.env, ...prodEnv, HOST: host };
+	const serverEnv = { ...process.env, ...prodEnv, HOST: host, ONBOARDING_SVELTEKIT_HOST: host, ONBOARDING_SVELTEKIT_PORT: port };
 	const opts = { stdio: 'inherit', cwd: root, env: serverEnv };
 	const server = spawn('node', [entry], opts);
 	server.on('error', (e) => {

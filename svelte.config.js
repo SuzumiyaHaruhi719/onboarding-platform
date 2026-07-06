@@ -7,12 +7,7 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		adapter: adapter({
-			// 设置一个不可能被设置的 envPrefix,这样 adapter-node 的
-			// env('HOST', '0.0.0.0') 永远走 fallback → 绑定 0.0.0.0。
-			// 彻底解决运维反馈 HOST=127.0.0.1 的问题。
-			envPrefix: 'ONBOARDING_SVELTEKIT_'
-		})
+		adapter: adapter()
 	}
 };
 
