@@ -309,19 +309,36 @@ function serveProd(envVars, logStream) {
 	if (!fs.existsSync(entry)) {
 		throw new Error(`找不到生产入口 ${entry}(构建可能失败)`);
 	}
-	// 强制 patch build/env.js:确保 env_prefix 为空,adapter-node 直接读 process.env.HOST。
-	// 这解决了 envPrefix 设了 ONBOARDING_SVELTEKIT_ 但目标机上 build 未重建的问题。
+	// 强制 patch build/env.js:不管 env_prefix 是什么,直接覆写 env 函数,
+	// 让 HOST 永远返回 '0.0.0.0',PORT 永远返回我们设的端口。
+	// 这是终极方案:不依赖任何环境变量传递。
 	const envJs = path.join(root, 'build', 'env.js');
 	if (fs.existsSync(envJs)) {
-		const content = fs.readFileSync(envJs, 'utf8');
-		if (content.includes('env_prefix') && !content.includes('env_prefix = ""')) {
-			const patched = content.replace(
-				/const env_prefix = "[^"]*"/,
-				'const env_prefix = ""'
+		let content = fs.readFileSync(envJs, 'utf8');
+		// 替换 env 函数:对 HOST/PORT 直接返回硬编码值
+		content = content.replace(
+			/const env_prefix = "[^"]*"/,
+			'const env_prefix = ""'
+		);
+		// 在 export 之前注入 HOST/PORT 的硬编码覆盖
+		const injectCode = `
+// === INJECTED BY start.mjs: force HOST=0.0.0.0, PORT=${port} ===
+const _origEnv = env;
+const _env = function(name, fallback) {
+	if (name === 'HOST') return '0.0.0.0';
+	if (name === 'PORT') return '${port}';
+	return _origEnv(name, fallback);
+};
+`;
+		if (!content.includes('INJECTED BY start.mjs')) {
+			// 替换原始 env 函数的 export
+			content = content.replace(
+				/export { dir, env, env_prefix, timeout_env }/,
+				injectCode + '\nexport { dir, _env as env, env_prefix, timeout_env }'
 			);
-			fs.writeFileSync(envJs, patched, 'utf8');
-			log('已 patch build/env.js: env_prefix → "" (确保 HOST=0.0.0.0 生效)');
-			logStream.write(`[${new Date().toISOString()}] patched build/env.js env_prefix → ""\n`);
+			fs.writeFileSync(envJs, content, 'utf8');
+			log('已 patch build/env.js: 注入 HOST=0.0.0.0 PORT=' + port);
+			logStream.write(`[${new Date().toISOString()}] patched build/env.js: HOST=0.0.0.0 PORT=${port}\n`);
 		}
 	}
 	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
