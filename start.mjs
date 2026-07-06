@@ -325,10 +325,10 @@ function serveProd(envVars, logStream) {
 		}
 	}
 	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
-	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port}\n`);
 	// launch 内部会做 { ...process.env, ...env } — 但 process.env 里可能有 supervisor 的 HOST。
 	// 所以这里再包一层,确保 HOST=0.0.0.0 在 process.env 展开之后。
 	const serverEnv = { ...process.env, ...prodEnv, HOST: host, ONBOARDING_SVELTEKIT_HOST: host, ONBOARDING_SVELTEKIT_PORT: port };
+	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port} | serverEnv.HOST=${serverEnv.HOST} ONBOARDING_SVELTEKIT_HOST=${serverEnv.ONBOARDING_SVELTEKIT_HOST || '(unset)'}\n`);
 	const opts = { stdio: 'inherit', cwd: root, env: serverEnv };
 	const server = spawn('node', [entry], opts);
 	server.on('error', (e) => {
