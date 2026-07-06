@@ -313,8 +313,10 @@ function serveProd(envVars, logStream) {
 	// 让 HOST 永远返回 '0.0.0.0',PORT 永远返回我们设的端口。
 	// 这是终极方案:不依赖任何环境变量传递。
 	const envJs = path.join(root, 'build', 'env.js');
+	logStream.write(`[${new Date().toISOString()}] envJs path: ${envJs}, exists: ${fs.existsSync(envJs)}\n`);
 	if (fs.existsSync(envJs)) {
 		let content = fs.readFileSync(envJs, 'utf8');
+		logStream.write(`[${new Date().toISOString()}] env.js length: ${content.length}, has INJECTED: ${content.includes('INJECTED BY start.mjs')}, env_prefix line: ${(content.match(/const env_prefix = "[^"]*"/) || ['not found'])[0]}\n`);
 		// 替换 env 函数:对 HOST/PORT 直接返回硬编码值
 		content = content.replace(
 			/const env_prefix = "[^"]*"/,
@@ -331,15 +333,39 @@ const _env = function(name, fallback) {
 };
 `;
 		if (!content.includes('INJECTED BY start.mjs')) {
-			// 替换原始 env 函数的 export
-			content = content.replace(
-				/export { dir, env, env_prefix, timeout_env }/,
-				injectCode + '\nexport { dir, _env as env, env_prefix, timeout_env }'
-			);
+			// 尝试多种 export 行格式
+			const exportPatterns = [
+				/export \{ dir, env, env_prefix, timeout_env \};?/,
+				/export \{ dir, env, env_prefix \};?/,
+				/export \{ env, env_prefix, timeout_env \};?/,
+				/export \{ env, env_prefix \};?/,
+			];
+			let patched = false;
+			for (const pat of exportPatterns) {
+				if (pat.test(content)) {
+					content = content.replace(pat, injectCode + '\nexport { dir, _env as env, env_prefix, timeout_env };');
+					patched = true;
+					break;
+				}
+			}
+			if (!patched) {
+				// 最后手段:在文件末尾追加,用 monkey-patch
+				logStream.write(`[${new Date().toISOString()}] WARNING: no export pattern matched! Trying fallback patch...\n`);
+				// 直接替换原始 env 函数体
+				content = content.replace(
+					/function env\(name, fallback\) \{/,
+					`function env(name, fallback) { if (name === 'HOST') return '0.0.0.0'; if (name === 'PORT') return '${port}';`
+				);
+				patched = true;
+			}
 			fs.writeFileSync(envJs, content, 'utf8');
 			log('已 patch build/env.js: 注入 HOST=0.0.0.0 PORT=' + port);
-			logStream.write(`[${new Date().toISOString()}] patched build/env.js: HOST=0.0.0.0 PORT=${port}\n`);
+			logStream.write(`[${new Date().toISOString()}] patched build/env.js: HOST=0.0.0.0 PORT=${port} (patched=${patched})\n`);
+		} else {
+			logStream.write(`[${new Date().toISOString()}] build/env.js already patched, skipping\n`);
 		}
+	} else {
+		logStream.write(`[${new Date().toISOString()}] WARNING: build/env.js NOT FOUND at ${envJs}\n`);
 	}
 	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
 	// launch 内部会做 { ...process.env, ...env } — 但 process.env 里可能有 supervisor 的 HOST。
