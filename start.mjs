@@ -292,12 +292,13 @@ function serveProd(envVars, logStream) {
 	const port = String(envVars.PORT || process.env.PORT || DESIRED_PORT);
 	const host = '0.0.0.0'; // 强制绑定所有接口,确保健康检查可达(不受 .env/环境变量覆盖)
 	const origin = envVars.ORIGIN || process.env.ORIGIN || `http://${host}:${port}`;
+	// 注意:HOST 放在最后,确保不被 ...envVars 或 process.env 中的值覆盖
 	const prodEnv = {
-		...envVars,
 		PORT: port,
-		HOST: host,
 		ORIGIN: origin,
-		NODE_ENV: 'production'
+		NODE_ENV: 'production',
+		...envVars,
+		HOST: host // 最终覆盖,必须在最后
 	};
 	const entry = path.join(root, 'build', 'index.js');
 	if (!fs.existsSync(entry)) {
@@ -305,7 +306,11 @@ function serveProd(envVars, logStream) {
 	}
 	log(`启动生产服务器:node build/index.js → http://${host}:${port}/`);
 	logStream.write(`[${new Date().toISOString()}] 启动生产服务器 ${host}:${port}\n`);
-	const server = launch(['node', entry], prodEnv);
+	// launch 内部会做 { ...process.env, ...env } — 但 process.env 里可能有 supervisor 的 HOST。
+	// 所以这里再包一层,确保 HOST=0.0.0.0 在 process.env 展开之后。
+	const serverEnv = { ...process.env, ...prodEnv, HOST: host };
+	const opts = { stdio: 'inherit', cwd: root, env: serverEnv };
+	const server = spawn('node', [entry], opts);
 	server.on('error', (e) => {
 		fail(`生产服务器启动失败:${e.message}`);
 		process.exit(1);
