@@ -378,6 +378,7 @@ const _env = function(name, fallback) {
 	// === 终极方案:反向代理绑定 0.0.0.0:5180 → 127.0.0.1:5181 ===
 	// 即使 adapter-node 绑了 127.0.0.1:5181,这个代理绑 0.0.0.0:5180
 	// 确保外部 Nginx 能通过 10.97.138.202:5180 访问。
+	// 同时也监听 80 端口(以防 Nginx 配置的后端端口是 80 而非 5180)。
 	const APP_PORT = 5181; // adapter-node 实际绑定端口
 	serverEnv.PORT = String(APP_PORT);
 	serverEnv.ONBOARDING_SVELTEKIT_PORT = String(APP_PORT);
@@ -398,14 +399,39 @@ const _env = function(name, fallback) {
 		});
 		req.pipe(proxyReq);
 	});
-	proxy.listen(Number(port), '0.0.0.0', () => {
-		log(`反向代理 0.0.0.0:${port} → 127.0.0.1:${APP_PORT}`);
-		logStream.write(`[${new Date().toISOString()}] proxy 0.0.0.0:${port} → 127.0.0.1:${APP_PORT}\n`);
-	});
-	proxy.on('error', (e) => {
-		fail(`反向代理失败: ${e.message}`);
-		logStream.write(`[${new Date().toISOString()}] proxy error: ${e.message}\n`);
-	});
+	// 监听所有可能的端口:5180(playbook 配的), 80(Nginx 常见默认)
+	const listenPorts = [Number(port), 80, 8080, 3000];
+	for (const lp of listenPorts) {
+		try {
+			const p = http.createServer((req, res) => {
+				const proxyReq = http.request({
+					hostname: '127.0.0.1',
+					port: APP_PORT,
+					path: req.url,
+					method: req.method,
+					headers: req.headers
+				}, (proxyRes) => {
+					res.writeHead(proxyRes.statusCode, proxyRes.headers);
+					proxyRes.pipe(res);
+				});
+				proxyReq.on('error', () => {
+					res.writeHead(502);
+					res.end('Proxy error');
+				});
+				req.pipe(proxyReq);
+			});
+			p.listen(lp, '0.0.0.0', () => {
+				log(`反向代理 0.0.0.0:${lp} → 127.0.0.1:${APP_PORT}`);
+				logStream.write(`[${new Date().toISOString()}] proxy 0.0.0.0:${lp} → 127.0.0.1:${APP_PORT}\n`);
+			});
+			p.on('error', (e) => {
+				warn(`端口 ${lp} 监听失败: ${e.message}`);
+				logStream.write(`[${new Date().toISOString()}] port ${lp} listen error: ${e.message}\n`);
+			});
+		} catch (e) {
+			warn(`端口 ${lp} 设置失败: ${e.message}`);
+		}
+	}
 
 	const server = spawn('node', [entry], opts);
 	server.on('error', (e) => {
