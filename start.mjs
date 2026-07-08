@@ -404,6 +404,20 @@ const _env = function(name, fallback) {
 	for (const lp of listenPorts) {
 		try {
 			const p = http.createServer((req, res) => {
+				// 诊断端点:回显请求来源 IP,帮助确认 Nginx 的真实出口 IP
+				if (req.url === '/__whoami__') {
+					const clientIp = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket.remoteAddress;
+					res.writeHead(200, { 'Content-Type': 'application/json' });
+					res.end(JSON.stringify({
+						clientIp,
+						remoteAddress: req.socket.remoteAddress,
+						remotePort: req.socket.remotePort,
+						localAddress: req.socket.localAddress,
+						localPort: req.socket.localPort,
+						headers: req.headers
+					}, null, 2));
+					return;
+				}
 				const proxyReq = http.request({
 					hostname: '127.0.0.1',
 					port: APP_PORT,
