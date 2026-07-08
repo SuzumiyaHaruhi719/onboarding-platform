@@ -6,7 +6,8 @@ export default defineConfig({
 	server: {
 		host: '0.0.0.0',
 		port: 5180,
-		strictPort: true
+		strictPort: true,
+		allowedHosts: true
 	},
 	test: {
 		include: ['src/**/*.{test,spec}.ts']
