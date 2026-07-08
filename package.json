@@ -6,6 +6,7 @@
 	"scripts": {
 		"start": "node start.mjs",
 		"dev": "vite dev",
+		"predev": "node src/lib/db/migrate.mjs",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
