@@ -49,11 +49,14 @@ export default class Database {
 	transaction(fn) {
 		this._db.exec('BEGIN');
 		try {
-			const r = fn();
+			// drizzle 期望回调接收一个事务上下文对象,
+			// 该对象需要有和 db 相同的 prepare/insert/update/delete 等方法。
+			// 由于我们的 shim 是薄包装,直接传 this 即可。
+			const r = fn(this);
 			this._db.exec('COMMIT');
 			return r;
 		} catch (e) {
-			this._db.exec('ROLLBACK');
+			try { this._db.exec('ROLLBACK'); } catch {}
 			throw e;
 		}
 	}
