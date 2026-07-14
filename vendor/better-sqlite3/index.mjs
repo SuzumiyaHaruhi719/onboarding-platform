@@ -47,17 +47,25 @@ export default class Database {
 		return this._db.close();
 	}
 	transaction(fn) {
-		this._db.exec('BEGIN');
-		try {
-			// drizzle 期望回调接收一个事务上下文对象,
-			// 该对象需要有和 db 相同的 prepare/insert/update/delete 等方法。
-			// 由于我们的 shim 是薄包装,直接传 this 即可。
-			const r = fn(this);
-			this._db.exec('COMMIT');
-			return r;
-		} catch (e) {
-			try { this._db.exec('ROLLBACK'); } catch {}
-			throw e;
-		}
+		// better-sqlite3 的 transaction(fn) 返回一个事务函数对象,
+		// 该对象有 .deferred(tx), .immediate(tx), .exclusive(tx) 方法。
+		// drizzle 调用 nativeTx[config.behavior ?? 'deferred'](tx) 来执行。
+		const runTx = (tx) => {
+			this._db.exec('BEGIN');
+			try {
+				const result = fn(tx);
+				this._db.exec('COMMIT');
+				return result;
+			} catch (e) {
+				try { this._db.exec('ROLLBACK'); } catch {}
+				throw e;
+			}
+		};
+		// 返回一个带 deferred/immediate/exclusive 方法的函数对象
+		const txFn = (tx) => runTx(tx);
+		txFn.deferred = (tx) => runTx(tx);
+		txFn.immediate = (tx) => runTx(tx);
+		txFn.exclusive = (tx) => runTx(tx);
+		return txFn;
 	}
 }
